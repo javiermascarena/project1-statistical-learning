@@ -39,7 +39,7 @@ data[!complete.cases(data), ]
 The first player has many stats missing and since he has only played 1 game in the season we will delete it. The next ones have their age, and born (year) missing (one also has its country missing), but with a quick Google search we can manually input these variables.
 
 ```{r}
-# Eliminating player with many missing variables
+# Eliminating player with many missing variables as it is a goalkeeper who did not play many games therefore, his stats won´t be important
 data <- data %>% filter(Rk != 1639)
 
 # Mnaually imputing some missing values
@@ -80,4 +80,23 @@ unique_data <- data %>%
   )
 
 skim(unique_data)
+```
+
+Many different variables have repeated or worthless values with different cases which may be tedious to work with later on so we will remove them
+Moreover, any players have more than one position due to difference circunstances which could be a punctual moment in a game or that they are good in different positions, but
+for this project we will only focus on one of the positions.
+
+```{r}
+# Using gsub function to eliminate lower case letters
+data$Nation = gsub("[a-z]","", data$Nation)
+
+# Using substring to obtain a specific number of characters
+data$Comp = substr(data$Comp, 4, nchar(data$Comp))
+data$Pos = substr(data$Pos,1,2)
+head(data)
+```
+
+
+```{r}
+
 ```
