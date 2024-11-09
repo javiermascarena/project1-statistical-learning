@@ -1,0 +1,202 @@
+---
+title: "Notebook"
+output: html_document
+date: "2024-11-09"
+---
+
+```{r}
+rm(list = ls())
+
+# Importing libraries
+library("dplyr")
+library("skimr")
+library("ggplot2")
+library("ggrepel")
+library("stringi")
+
+```
+
+We have different datasets which contain different statistics from different players which we will need to 
+combine to obtain a richer dataset and a more useful one
+
+```{r}
+# Reading the different datasets
+
+defense_stats <- read.csv("Big5-defenseStats22-23.csv", sep = ",")
+gca_stats <- read.csv("Big5-gcaStats22-23.csv", sep = ",")
+misc_stats <- read.csv("Big5-miscStats22-23.csv", sep = ",")
+passing_types <- read.csv("Big5-passing_typesStats22-23.csv", sep = ",")
+passing_stats <- read.csv("Big5-passingStats22-23.csv", sep = ",")
+possession_stats <- read.csv("Big5-possessionStats22-23.csv", sep = ",")
+shooting_stats <- read.csv("Big5-shootingStats22-23.csv", sep = ",")
+
+# Csv statsStats has already included statistics
+
+# Datasets for goalkeepers
+keepers_one <- read.csv("Big5-keepersadvStats22-23.csv", sep = ",")
+keepers_two <- read.csv("Big5-keepersStats22-23.csv", sep = ",")
+
+# Dataset for all players combined
+playingtime <- read.csv("Big5-playingtimeStats22-23.csv", sep = ",")
+
+```
+
+
+Merging all datasets according to different columns and dealing with missing values and duplicates later, this can be done with the inner join function taken into account that all datasets have the same 8 first columns
+
+```{r}
+# Making a list with the repeated columns
+repeated_columns = c("Player", "Nation", "Pos", "Squad", "Comp", "Age", "Born", "X90s")
+
+
+# Inner joining all datasets based on key columns and a brief look at it
+merged_players <- inner_join(defense_stats, gca_stats, by = repeated_columns)%>%
+                  inner_join(misc_stats, by = repeated_columns)%>%
+                  inner_join(passing_types, by = repeated_columns)%>%
+                  inner_join(passing_stats, by = repeated_columns)%>%
+                  inner_join(possession_stats, by = repeated_columns)%>%
+                  inner_join(shooting_stats, by = repeated_columns)
+skim(merged_players)
+
+# Repeating the same process but with goalkeepers
+
+merged_goalkeepers = inner_join(keepers_one,keepers_two, by = repeated_columns)
+skim(merged_goalkeepers)
+```
+
+We see that Min (Minutes) for goalkeepers is of character type, we should change this to obtain an integer for future, it also has problems for decimals, so we have to change to points instead of commas
+
+```{r}
+merged_goalkeepers$Min <- gsub(",", ".", merged_goalkeepers$Min)
+
+merged_goalkeepers$Min <- as.numeric(merged_goalkeepers$Min)
+```
+
+We now have the problem that goalkeepers have different stats to players, therefore the number of variables
+varies and we cant join them to the same dataset, we need to add the columns which are not in players to goalkeepers with a 0 value for each entry and vice versa
+
+
+```{r}
+# Obtaining all columns in players and goalkeepers
+player_columns <- colnames(merged_players)
+gk_columns <- colnames(merged_goalkeepers)
+
+# Finding out the different columns in each of the datasets
+missing_columns_players = setdiff(gk_columns, player_columns)
+missing_columns_gk = setdiff(player_columns, gk_columns)
+
+# Using a for loop to create the missing columns with a value of 0
+for (col in missing_columns_players) {
+  merged_players[[col]] <- 0
+}
+
+for (col in missing_columns_gk) {
+  merged_goalkeepers[[col]] <- 0
+}
+
+#Combining both goalkeepers and players
+all_players = bind_rows(merged_players,merged_goalkeepers)
+
+#Merging with playing time Stats
+final_players <- inner_join(all_players, playingtime, by = repeated_columns)
+head(final_players)
+```
+We see many thing such as that the nations are repeated in both lower and upper case, that some players have more than one position and the competition also has lower case in front which could be troubling in the future. We will remove the strings with gsub and substr, and maintain only the first position for all players
+
+
+```{r}
+final_players$Nation <- gsub("[a-z]", "", final_players$Nation)
+final_players$Pos <- substr(final_players$Pos,1,2)
+final_players$Comp <- substr(final_players$Comp, 4, nchar(final_players$Comp))
+
+# With that solved we will look at the players now to check for NAs and duplicated values
+skim(final_players)
+sum(duplicated(final_players$Player))
+```
+
+We see there are many NA values which could be from players who have barely played and therefore many of their data has not been registered. Apart from that we also see there are a total of 382 duplicates which could be from players who were transferred or were loaned mid-season. 
+
+```{r}
+# Obtaining the data without repetition
+unique_stats <- final_players %>%
+  group_by(Player) %>%
+  summarise(
+    # Categorical variables
+    Nation = first(Nation), 
+    Pos = first(Pos),
+    Age = first(Age), 
+    Born = first(Born),
+    # Selecting team and competition where
+    # the player has the most minutes
+    Squad = Squad[which.max(Min.)],  
+    Comp = Comp[which.max(Min.)],
+    
+    
+    # Sum the numeric columns since all have 
+    # linear statistics of the players
+    across(where(is.numeric), sum),
+    
+    .groups = "drop"
+  )
+
+sum(duplicated(unique_stats))
+```
+
+We now need to handle missing values, as this could cause problems in future work
+
+```{r}
+sum(is.na(final_players))
+
+```
+
+
+
+
+We see that this dataset has many statistics for players, but we could also benefit from other ones that are not there, such as the overall player rating or their price. For this we will merge part of another dataset which bases its rating and some other statistics in the FIFA videogame.
+
+```{r}
+# Reading complimentary data
+data_fifa <- read.csv("CLEAN_FIFA23_official_data.csv")
+
+skim(data_fifa)
+
+```
+We can see that there are some mistakes and some players have a number in their name and this could cause many problems when merging players.
+Wages and value are in pounds so we have to change that to euros for a better understanding
+Moreover, there are many columns which reference the same thing as the previous dataset but with different name, for example player and name, we need to change the name of the columns
+
+
+```{r}
+
+data_fifa$Name <- gsub("[0-9]", "",data_fifa$Name)
+data_fifa$Wage... <- data_fifa$Wage...*1.2
+data_fifa$Value... <- data_fifa$Value...*1.2
+
+# We will see the columns to see if the name is the same and merging can be done
+colnames(data_fifa)
+
+colnames(all_players)
+
+# Rename columns in data_fifa to match those in all_players
+colnames(data_fifa) <- c("X", "ID", "Player", "Age", "Photo", "Nation", 
+                         "Flag", "Overall", "Potential", "Squad", "Club.Logo", 
+                         "Value", "Wage", "Special", "Preferred.Foot", 
+                         "International.Reputation", "Weak.Foot", "Skill.Moves", 
+                         "Work.Rate", "Body.Type", "Real.Face", "Position", 
+                         "Joined", "Loaned.From", "Contract.Valid.Until", 
+                         "Height", "Weight", "Release.Clause", "Kit.Number", 
+                         "Best.Overall.Rating", "Year_Joined")
+
+# Merging both datasets following the same procedure as before
+same_columns = c("Player", "Nation")
+full_data = inner_join(data_fifa,all_players,by =  same_columns)
+
+
+
+
+```
+
+
+
+
+
