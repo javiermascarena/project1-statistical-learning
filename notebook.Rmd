@@ -15,10 +15,12 @@ rm(list = ls())
 # Importing libraries
 library("dplyr")
 library("skimr")
+library("ggplot2")
+library("ggrepel")
+library("stringi")
 
-# Reading data
-#data <- read.csv("2022-2023 Football Player Stats.csv", sep=";")
-data <- read.csv("top5-players.csv")
+# Reading initial data
+data_stats <- read.csv("2022-2023 Football Player Stats.csv", sep=";")
 ```
 
 **DATA PREPROCESSING**
@@ -26,39 +28,16 @@ data <- read.csv("top5-players.csv")
 Getting an idea of what the dataset looks like.
 
 ```{r}
-skim(data)
+skim(data_stats)
 ```
 
-As we observe from the output there are a couple of NA values, so we have to decide what to do with them.
-
-```{r}
-# Select rows with any NA values
-data[!complete.cases(data), ]
-```
-
-The first player has many stats missing and since he has only played 1 game in the season we will delete it. The next ones have their age, and born (year) missing (one also has its country missing), but with a quick Google search we can manually input these variables.
-
-```{r}
-# Eliminating player with many missing variables as it is a goalkeeper who did not play many games therefore, his stats won´t be important
-data <- data %>% filter(Rk != 1639)
-
-# Mnaually imputing some missing values
-data[data$Rk == 1785, c("Age", "Born")] <- c("17", "2006")
-data[data$Rk == 2075, c("Nation", "Age", "Born")] <- c("ar ARG", "21", "2002")
-data[data$Rk == 2076, c("Nation", "Age", "Born")] <- c("ar ARG", "21", "2002")
-data[data$Rk == 2530, c("Age", "Born")] <- c("21", "2001")
-
-# Select rows with any NA values
-data[!complete.cases(data), ]
-```
-
-Now there are no rows with missing values, but from the players with NA values we have discovered that there are some players that appear more than once. This might be because maybe they played a couple of games for one team and then got transferred or loaned to another one.
+Although there are no rows with missing values, if we look at the data closely we discover that there are some players that appear more than once. This might be because maybe they played a couple of games for one team and then got transferred or loaned to another one.
 
 In this case what we will do is combine all the instances of that player in the dataset into a single observation and recalculate all statistics based on the combination of the different rows.
 
 ```{r}
 # Obtaining the data without repetition
-unique_data <- data %>%
+unique_stats <- data_stats %>%
   group_by(Player) %>%
   summarise(
     # Categorical variables
@@ -79,24 +58,59 @@ unique_data <- data %>%
     .groups = "drop"
   )
 
-skim(unique_data)
+# Changing Neymar's name for easier merging afterwards, 
+# since he is an important player that will be necessary for further analysis
+unique_stats[1796, "Player"] = "Neymar Jr"
+skim(unique_stats)
 ```
 
-Many different variables have repeated or worthless values with different cases which may be tedious to work with later on so we will remove them
-Moreover, any players have more than one position due to difference circunstances which could be a punctual moment in a game or that they are good in different positions, but
-for this project we will only focus on one of the positions.
+We see that this dataset has many statistics for players, but we could also benefit from other ones that are not there, such as the overall player rating or their price. For this we will merge part of another dataset which bases its rating and some other statistics in the FIFA videogame.
 
 ```{r}
-# Using gsub function to eliminate lower case letters
-data$Nation = gsub("[a-z]","", data$Nation)
+# Reading complimentary data
+data_fifa <- read.csv("CLEAN_FIFA23_official_data.csv")
 
-# Using substring to obtain a specific number of characters
-data$Comp = substr(data$Comp, 4, nchar(data$Comp))
-data$Pos = substr(data$Pos,1,2)
-head(data)
+skim(data_fifa)
 ```
 
+Now we will merge this last dataset into the first one.
+
+For this we have first to convert some characters like "é" into standard English alphabet ("e") because of differences between both datasets.
+
+Secondly, since in the FIFA data names come in different formats ("Messi", "L. Messi" or "Lionel Messi") we have to convert it to the format "L. Messi" to then merge it into the first dataset by means of the surname.
 
 ```{r}
+# Convert 1st dataset to the UTF-8 format for replacing characters
+unique_stats$Player <- stri_encode(unique_stats$Player, from = "ISO-8859-1", to = "UTF-8")
 
+# Replacing characters by its closest English alphabet character
+unique_stats$Player <- stri_trans_general(unique_stats$Player, "latin-ascii")
+data_fifa$Name <- stri_trans_general(data_fifa$Name, "latin-ascii")
+
+# Set a Name column to the format "L. Messi"
+data_fifa$StandardizedName <- paste0(substr(data_fifa$Name, 1, 1), ". ", sapply(strsplit(data_fifa$Name, " "), function(x) x[length(x)]))
+
+# Create a new column of the surname
+unique_stats$Surname <- sapply(strsplit(unique_stats$Player, " "), function(x) x[length(x)])
+data_fifa$Surname <- sapply(strsplit(data_fifa$StandardizedName, " "), function(x) x[length(x)])
+
+# Merge both datasets by Surname
+full_data <- full_join(unique_stats, data_fifa, by = "Surname")
+
+# Eliminating NAs and repeated values when merging has not been correct
+full_data <- na.omit(full_data)
+full_data <- distinct(full_data, Player, .keep_all = TRUE)
+
+head(full_data)
 ```
+
+We can observe that there are a few missing observations in the original data that have not been merged. Let's have a look at what they look like
+
+```{r}
+# Observations not merged
+anti_join(unique_stats, full_data, by = "Player")
+```
+
+If we take a closer look at each observation we can see that they have not been merged because of one of two options. First, the player was not in the FIFA dataset. Second, the player had unexpected characters such as "?" in his name.
+
+For the first option we cannot do anything, so we will not work with those observations, since also if they do not appear in the video game they probably are not very relevant. For the second option we could manually input the names, but because of the big number of observations with this error, and because there are little to no important players in this group, we decided to omit them.
