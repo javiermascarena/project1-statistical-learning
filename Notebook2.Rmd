@@ -15,8 +15,8 @@ library("skimr")
 library("ggplot2")
 library("ggrepel")
 library("stringi")
-# Install.packages("fuzzyjoin")
-library("fuzzyjoin")
+library(sf)
+library(mice)
 
 ```
 
@@ -45,7 +45,8 @@ playingtime <- read.csv("Big5-playingtimeStats22-23.csv", sep = ",")
 **DATA PREPROCESSING**
 
 Merging all datasets in one when each of them has a lot of datasets will potentially cause many problems in the long run, we won´t handle duplicates or NA values just yet and fill focus on reducing the amount of dimensions each dataset has.
-Therefore, we will look at each dataset independently handling the unimportant columns or columns that can be inferred from other columns to reduce dimensionality.
+Therefore, we will look at each dataset independently handling the unimportant columns or columns that can be inferred from other datasets to reduce dimensionality.
+We will also rename the variables remaining for a better understanding.
 
 
 ```{r}
@@ -53,9 +54,13 @@ Therefore, we will look at each dataset independently handling the unimportant c
 
 # The total amount of tackles is the sum of Def.3rd, Mid.3rd and Att.3rd which just refer to where those tackles were made, Tkl.Int is a sum of both tackles and interceptions therefore we can keep this columns and eliminate both interceptions and tackles. Blocks are a sum of Sh and Pass which refers to the different type of blocks. Tkl.1 is tackles in the first half, already included in the first variable. Tkl.1 measures the percentage of lost balls when Att is done, it divides Att and Lost
 
-defense_cols <- c("Def.3rd","Mid.3rd","Att.3rd","Tkl","Tkl.1","Int","Sh", "Pass", "Att", "Lost")
+defense_cols <- c("Def.3rd","Mid.3rd","Att.3rd","Tkl.1","Int","Sh", "Pass", "Att", "Lost")
 
 defense_stats <- defense_stats %>% select(-all_of(defense_cols))
+
+defense_stats <- defense_stats %>% 
+  rename(TacklesDone = Tkl, SuccessfulTackles = TklW, TacklesANDIntercep = Tkl.Int, 
+         Clearances = Clr, Errors = Err, PercDribblersTackled = Tkl.)
 
 
 # GCA stats
@@ -69,7 +74,8 @@ gca_cols <- c("SCA90","PassLive", "PassDead", "TO", "Sh", "Fld", "Def", "GCA90",
 
 gca_stats <- gca_stats %>% select(-all_of(gca_cols))
 
-
+gca_stats <- gca_stats %>% 
+  rename(ShotCreatingActions = SCA, GoalCreatingActions = GCA )
 
 # Misc stats
 
@@ -80,49 +86,72 @@ misc_cols <- c("X2CrdY", "TklW", "Int", "Won", "Lost", "OG", "PKwon", "PKcon", "
 
 misc_stats <- misc_stats %>% select(-all_of(misc_cols))
 
+misc_stats <- misc_stats %>% 
+  rename(YellowCards = CrdY, RedCards = CrdR, FoulsCommited = Fls, FoulsDrawn = Fld, Offsides = Off, RecoveredBalls = Recov, PercAerialDuelsWon = Won.)
+
 # Passing Stats
 
-#Cmp. is the percentage of the completed passes in terms of the attempted ones, therefore we can remove them. Cmp.1, Att.1, Cmp..1,Cmp.2,Att.2, Cmp..2, Cmp.3,Att.3,Cmp..3 are all relative to the distance of the passes, which is not of much interest as of right now and both TotDist and PrgDist contain a lot of information about the distance of passes. 1/3, PPA, CrsPa, PrgP are also covered as they all refer to progressive passes
+#Cmp. is the percentage of the completed passes in terms of the attempted ones, therefore we can remove them. Cmp.1, Att.1, Cmp..1,Cmp.2,Att.2, Cmp..2, Cmp.3,Att.3,Cmp..3 are all relative to the distance of the passes, which is not of much interest as of right now and both TotDist and PrgDist contain a lot of information about the distance of passes. 1/3, PPA, CrsPa, PrgP are also covered as they all refer to progressive passes. A.xAG is assists minus the xAG, therefore we can remove it.
 
-passing_cols <- c("Cmp.1", "Att.1", "Cmp..1","Cmp.2","Att.2", "Cmp..2", "Cmp.3","Att.3","Cmp..3","X1.3", "PPA", "CrsPA", "PrgP")
+passing_cols <- c("Cmp.","Cmp.1", "Att.1", "Cmp..1","Cmp.2","Att.2", "Cmp..2", "Cmp.3","Att.3","Cmp..3","X1.3", "PPA", "CrsPA", "PrgP","A.xAG")
 
 passing_stats <- passing_stats %>% select(-all_of(passing_cols))
+
+passing_stats <- passing_stats %>% 
+  rename(CompletedPasses = Cmp, AttemptedPasses = Att, PassingDistance = TotDist, ForwardPassingDistance = PrgDist, Assists = Ast, ExpectedAssistsGoal = xAG, ExpectedAssists = xA,  KeyPasses = KP)
 
 # Posession Stats
 
 
 # Touches is a sum of Def.Pen, Def.3rd, Mid.3rd, Att.3rd, Att.Pen, Live so we can remove them. Succ. is the division of Att and Succ which refers to the number of times the attacker has dribbled the defender divided by the total attemps. Tkld, Tkld. are two variables directly related to the previous so we can also take them out. X1.3, CPA, Mis are not really valuable. TotDist and PrgDist will have different names to differentiate from the previous dataset that used the same variables. Rec, PrgR refer to the times the player received a good pass where in most of the cases if a pass is missed it is usually the passers fault rather than the receiver.
 
-possession_stats <- possession_stats %>% 
-  rename(DistanceRan = TotDist, ForwardDistanceRan = PrgDist)
 
 posession_cols <- c("Def.Pen", "Def.3rd", "Mid.3rd", "Att.3rd", "Att.Pen", "Live", "Att", "Succ", "Tkld", "Tkld.","X1.3", "CPA", "Mis", "Rec", "PrgR", "PrgC")
 
 possession_stats <- possession_stats %>% select(-all_of(posession_cols))
 
+possession_stats <- possession_stats %>% 
+  rename(DistanceRanBall = TotDist, ForwardDistanceRanBall = PrgDist, PercSuccessfulDribbles = Succ., Dispossessed = Dis)
+
 # Shooting Stats
 
-# With goals, shots and shots on target we can infer SoT., Sh.90, SoT.90, G.Sh, G.SoT. As not many players shoot penalties or free kicks we will not take into account this, FK, PK and PKatt will be removed
+# With goals, shots and shots on target we can infer SoT., Sh.90, SoT.90, G.Sh, G.SoT. As not many players shoot penalties or free kicks we will not take into account this, FK, PK and PKatt will be removed. npxG/Sh can be calculated with both variables, as well as G.xG and np.G.xG can also be calculated with npxG and xG
 
-shooting_cols <- c("SoT.", "Sh.90", "SoT.90", "G.Sh", "G.SoT","FK", "PK","PKatt")
+shooting_cols <- c("SoT.", "Sh.90", "SoT.90", "G.Sh", "G.SoT","FK", "PK","PKatt", "npxG.Sh", "G.xG", "np.G.xG")
 
 shooting_stats <- shooting_stats %>% select(-all_of(shooting_cols))
 
+shooting_stats <- shooting_stats %>% 
+  rename(Goals = Gls, Shots = Sh, ShotsOnTarget = SoT, ShotDistance = Dist, ExpectedGoals = xG, NonPenaltyExpectedGoals = npxG)
+
 # Keepers one
 
-# The statistics MP, Starts, Min will be in another dataset so we will remove them. Save. is calculated by SoTA-GA/SoTa and CS. which refers to clean sheets can also be removed. Everything about free kicks and penalties can be removed as it is easy to score from a penalty and harder from a free kick and it usually depends on the quality of the attacker, many times the keeper cannot do much.We will remove PKatt, PKA, PKsv,PKm,Save..1
+# The statistics MP, Starts, Min will be in another dataset so we will remove them. Save. is calculated by SoTA-GA/SoTa and CS. which refers to clean sheets can also be removed. Everything about free kicks and penalties can be removed as it is easy to score from a penalty and harder from a free kick and it usually depends on the quality of the attacker, many times the keeper cannot do much.We will remove PKatt, PKA, PKsv,PKm,Save..1. GA90 can also be inffered with Goals Against and 90s
 
-keepers_cols <- c("MP", "Starts", "Min", "Save.", "CS.", "PKatt", "PKA", "PKsv","PKm","Save..1")
+keepers_cols <- c("MP", "Starts", "Min", "Save.", "CS.", "PKatt", "PKA", "PKsv","PKm","Save..1", "GA90")
 
 keepers_one <- keepers_one %>% select(-all_of(keepers_cols))
 
+keepers_one <- keepers_one %>% 
+  rename(GoalsAllowed = GA, ShotsOnTargetAgainst = SoTA, Won = W, Drawn = D, Lost = L, CleanSheets = CS)
+
+
+
 # Playing Time
 
-# Mn.Mp can be calculated as Min/Mp, Mn.Start will be Min/Starts, Compl can be seen as it is not really important. The same for all sub variables as with minutes we can already kind of see the amount of time played. We will remove Subs, Mn.Sub, unSub
+# Mn.Mp can be calculated as Min/Mp, Mn. can also be calculated. Mn.Start will be Min/Starts, Compl can be seen as it is not really important. The same for all sub variables as with minutes we can already kind of see the amount of time played. We will remove Subs, Mn.Sub, unSub. X... is substraction of onG and onGA so we can remove it, and the same for the 90s, X...90. Same for On.Off.1 and On.Off. Minutes is a character therefore we will have to change to numeric
 
-playing_cols <- c("Mn.MP", "Mn.Start", "Compl", "Subs", "Mn.Sub", "unSub")
+playing_cols <- c("Mn.MP","Min.", "Mn.Start", "Compl", "Subs", "Mn.Sub", "unSub","X...", "X...90", "On.Off", "On.Off.1", "xG...", "xG...90")
 
 playingtime <- playingtime %>% select(-all_of(playing_cols))
+
+playingtime <- playingtime %>% 
+  rename(MatchesPlayed = MP, Minutes = Min,PointsPerMatch = PPM, GoalsByTeam = onG, GoalsAgainstTeam = onGA, ExepectedGoalsByTeam = onxG, ExpectedGoalsAgainstTeam = onxGA )
+
+# Goalkeepers have values with decimal , instead of . so we will also change it
+playingtime$Minutes <- gsub(",",".", playingtime$Minutes)
+
+playingtime$Minutes = as.numeric(playingtime$Minutes)
 
 ```
 
@@ -188,26 +217,11 @@ final_players$Pos <- substr(final_players$Pos,1,2)
 # Removing lower case before leaguew
 final_players$Comp <- substr(final_players$Comp, 4, nchar(final_players$Comp))
 
+
 # With that solved we will look at the players now to check for NAs and duplicated values
-skim(final_players)
+head(final_players)
 ```
 
-We see there are many NA values which could be from players who have barely played and therefore many of their data has not been registered. Because of this we will remove all players that have played less very little. For this we have to remove the columns for minutes played and number of starts of goalkeepers, and replace the X90s column in those.
-
-```{r}
-# Getting the expected 90s of goalkeepers in the same 
-# column as the other players
-#final_players$X90s <- final_players$X90s + final_players$X.90
-
-
-# Eliminating players that have not played much
-final_players <- final_players[final_players$X90s > 2,]
-
-# Number of duplicated players 
-sum(duplicated(final_players$Player))
-
-skim(final_players)
-```
 
 Apart from that we also see there are a total of +200 duplicates which could be from players who were transferred or were loaned mid-season. To deal with this, we will keep the entries with the most time played.
 
@@ -223,6 +237,7 @@ final_players <- final_players %>%
 # Check that there are no duplicates now
 sum(duplicated(final_players))
 ```
+**Median Imputation** 
 
 Now we have to deal with NA values. Since all NA values are in numerical columns, we can replace these NAs by the median of that column.
 
@@ -254,7 +269,7 @@ sum(duplicated(data_fifa$Name))
 As it has happened with our previous football datasets, we will have to modify duplicate values
 
 ```{r}
-# Obtaining the data without repeted players
+# Obtaining the data without repeated players
 data_fifa <- data_fifa %>%
   group_by(Name) %>%
   # Keeping only observations with the most recent joined date
@@ -266,36 +281,23 @@ data_fifa <- data_fifa %>%
 sum(duplicated(final_players))
 
 
-
-
 ```
 
-We can also see that the dataset is already clean with no Na values but looking at the different columns and variables  there are some columns which do not provide much information, are already in the previous dataset or are not of our interest for our current project, therefore, we will remove them.
-Since the merging will be done by name it is the only column present in other datasets that we will maintain
+We can also see that the dataset is already clean with no NA values but looking at the different columns and variables  there are some columns which do not provide much information, are already in the previous dataset or are not of our interest for our current project, therefore, we will remove them.
+Since the merging will be done by name it is the only column present in other datasets that we will maintain. The name in the fifa dataset has numbers before which can lead to errors when merging as well, so we will have to remove it.
+
 
 ```{r}
 colnames(data_fifa)
-cols <- c("X", "ID", "Age", "Photo","Flag", "Club", "Club.Logo", "Special","Work.Rate","Skill.Moves", "Weak.Foot","Body.Type", "Real.Face", "Position", "Joined", "Loaned.From", "Contract.Valid.Until",
-          "Release.Clause...", "Kit.Number", "Best.Overall.Rating", "Year_Joined")
+
+cols <- c("X", "ID", "Age", "Photo","Flag", "Club", "Club.Logo", "Special","Work.Rate","Skill.Moves", "Weak.Foot","Body.Type", "Real.Face", "Position", "Joined", "Loaned.From", "Contract.Valid.Until","Release.Clause...", "Kit.Number", "Best.Overall.Rating", "Year_Joined", "Potential", "Preferred.Foot", "International.Reputation")
 
 data_fifa <- data_fifa %>% select(-all_of(cols))
 
-
-
-```
-
-
-```{r}
-
-# The format string for the players is different, therefore we will merge them according to the similarity in the player and the name
-full_data <- stringdist_join(final_players, data_fifa,
-                            by = c("Player" = "Name"),
-                            method = "jw",
-                            max_dist = 0.2,
-                            distance_col = "dist")
-names(full_data)
+data_fifa$Name <- gsub("[0-9]+", "", data_fifa$Name)
 
 ```
+
 
 Now that we have cleaned a bit the other dataset we can proceed to merging it with this new and last one.
 
@@ -304,9 +306,9 @@ For this there is a problem, where FIFA players have different name formats ("Me
 Also we will replace before all of this all characters from other languages into the closest one in the English alphabet ("è" -\> "e")
 
 
-#DEJE ESTE CHUNK POR SI ACASO, AHORA MISMO R NO LO LEE
 
-```{r eval=FALSE, include=FALSE}
+
+```{r}
 # Replacing characters by its closest English alphabet character
 final_players$Player <- stri_trans_general(final_players$Player, "latin-ascii")
 data_fifa$Name <- stri_trans_general(data_fifa$Name, "latin-ascii")
@@ -345,8 +347,9 @@ full_data <- full_join(final_players, data_fifa, by = "Surname")
 # Eliminating repeated values when merging has not been correct
 full_data <- na.omit(full_data)
 full_data <- distinct(full_data, Player, .keep_all = TRUE)
-```
 
+
+```
 We observe that some observations has been lost. If we look closely at the data most of those observations not merged do not appear in the FIFA dataset so, since they are not very relevant we can exclude them confidently.
 
 ```{r}
@@ -354,13 +357,53 @@ We observe that some observations has been lost. If we look closely at the data 
 not_merged <- anti_join(final_players, full_data, by = "Player")
 ```
 
-Now that we have the whole data, we will address the huge amount of columns we have. First of all, we will remove columns that reference the same statistics, and also get rid of the useless ones.
+**Outliers**
+
+Outliers are actually important as many players could have a fantastic season compared to others so it is important to keep them. But there are many players who are not in the managers rotation and they dont play much minutes so we will eliminate them as they will not provide useful information.
+
 
 ```{r}
-# Getting rid of useless and repeated columns
-useless_repeated_cols = c("Year_Joined", "Best.Overall.Rating", "Kit.Number", "Release.Clause...", "Contract.Valid.Until", "Loaned.From", "Joined", "Position", "Real.Face", "Body.Type", "Work.Rate", "Skill.Moves", "Weak.Foot", "International.Reputation", "Special", "Wage...", "Club.Logo", "Club", "Potential", "Flag", "Nationality", "Photo", "Age.y", "Name", "ID" )
+ggplot(full_data) +
+  aes(x = Minutes)+
+  geom_area(stat = "bin",fill="lightblue", color="blue", binwidth = 40) + 
+   theme_minimal()
+```
 
-full_data <- full_data %>% select(-all_of(useless_repeated_cols))
+
+```{r}
+
+# Eliminating players that have not played much
+full_data <- full_data[full_data$Starts > 2,]
+
+# ESTO PASA DE 2200 JUGADORES A UNOS 1800, PERO AL HACER EL GGPLOT DE ARRIBA DE NUEVO, LOS JUGADORES CON 0 MINUTOS NO LOS ELIMINO Y NO SE PORQUE NO.
+```
+
+
+
+
+We will now create some graphs to generate some insights and obtain information about the players.
+
+We will know focus on goals and assists as they are one of the most important variables as goals and assists win games. In this plot, we can see as expected that forwards have higher values, it is also remarkable that we have some goalkeepers with an assist or goal. Players above the line have scored less goals than expected while players further to the right and below the line have scored more goals than it was expected.
+
+```{r}
+ggplot(full_data)+
+  aes(x = Assists+Goals, y = ExpectedGoals+ExpectedAssists, color = Pos)+
+  geom_point()+
+  geom_text(
+    data = subset(full_data, Assists+Goals > 25),
+    aes(label = Player),
+    vjust = -0.5,
+    hjust = 0.5,
+    size = 2,
+    )+
+  geom_abline()+
+  ggtitle(" Goals and Assists vs Expected Goals and Assists")
 
 
 ```
+Clearly there seems to be a linear relation between both of them
+
+
+
+
+
