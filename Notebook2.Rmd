@@ -15,8 +15,9 @@ library("skimr")
 library("ggplot2")
 library("ggrepel")
 library("stringi")
-library(sf)
-library(mice)
+library("GGally")
+library("sf")
+library("mice")
 
 ```
 
@@ -44,10 +45,9 @@ playingtime <- read.csv("Big5-playingtimeStats22-23.csv", sep = ",")
 
 **DATA PREPROCESSING**
 
-Merging all datasets in one when each of them has a lot of datasets will potentially cause many problems in the long run, we won´t handle duplicates or NA values just yet and fill focus on reducing the amount of dimensions each dataset has.
-Therefore, we will look at each dataset independently handling the unimportant columns or columns that can be inferred from other datasets to reduce dimensionality.
-We will also rename the variables remaining for a better understanding.
+Merging all datasets in one when each of them has a lot of datasets will potentially cause many problems in the long run, we won't handle duplicates or NA values just yet and fully focus on reducing the amount of dimensions each dataset has.
 
+Therefore, we will look at each dataset independently handling the unimportant columns or columns that can be inferred from other datasets to reduce dimensionality. We will also rename the variables remaining for a better understanding.
 
 ```{r}
 # Defense Stats
@@ -59,7 +59,7 @@ defense_cols <- c("Def.3rd","Mid.3rd","Att.3rd","Tkl.1","Int","Sh", "Pass", "Att
 defense_stats <- defense_stats %>% select(-all_of(defense_cols))
 
 defense_stats <- defense_stats %>% 
-  rename(TacklesDone = Tkl, SuccessfulTackles = TklW, TacklesANDIntercep = Tkl.Int, 
+  rename(TacklesDone = Tkl, SuccessfulTackles = TklW, TacklesANDIntercep = Tkl.Int,
          Clearances = Clr, Errors = Err, PercDribblersTackled = Tkl.)
 
 
@@ -155,9 +155,6 @@ playingtime$Minutes = as.numeric(playingtime$Minutes)
 
 ```
 
-
-
-
 Merging all datasets according to different columns and dealing with missing values and duplicates later, this can be done with the inner join function taken into account that all datasets have the same 8 first columns.
 
 ```{r}
@@ -176,7 +173,6 @@ skim(merged_players)
 
 
 ```
-
 
 We now have the problem that goalkeepers have different stats to players, therefore the number of variables varies and we cannot join them to the same dataset. Instead we need to add the columns which are not in players to goalkeepers with a 0 value for each entry and viceversa.
 
@@ -222,7 +218,6 @@ final_players$Comp <- substr(final_players$Comp, 4, nchar(final_players$Comp))
 head(final_players)
 ```
 
-
 Apart from that we also see there are a total of +200 duplicates which could be from players who were transferred or were loaned mid-season. To deal with this, we will keep the entries with the most time played.
 
 ```{r}
@@ -237,7 +232,8 @@ final_players <- final_players %>%
 # Check that there are no duplicates now
 sum(duplicated(final_players))
 ```
-**Median Imputation** 
+
+**Median Imputation**
 
 Now we have to deal with NA values. Since all NA values are in numerical columns, we can replace these NAs by the median of that column.
 
@@ -250,12 +246,7 @@ final_players <- final_players %>%
 nrow(final_players %>% filter(if_any(everything(), is.na)))
 ```
 
-
-
-
 We see that this dataset has many statistics for players, but we could also benefit from other ones that are not there, such as the overall player rating or their price. For this we will merge part of another dataset which bases its rating and some other statistics in the FIFA videogame.
-
-
 
 ```{r}
 # Reading complimentary data and removing unnecessary columns
@@ -265,7 +256,8 @@ skim(data_fifa)
 colnames(data_fifa)
 # Checking for duplicate values
 sum(duplicated(data_fifa$Name))
-``` 
+```
+
 As it has happened with our previous football datasets, we will have to modify duplicate values
 
 ```{r}
@@ -283,9 +275,7 @@ sum(duplicated(final_players))
 
 ```
 
-We can also see that the dataset is already clean with no NA values but looking at the different columns and variables  there are some columns which do not provide much information, are already in the previous dataset or are not of our interest for our current project, therefore, we will remove them.
-Since the merging will be done by name it is the only column present in other datasets that we will maintain. The name in the fifa dataset has numbers before which can lead to errors when merging as well, so we will have to remove it.
-
+We can also see that the dataset is already clean with no NA values but looking at the different columns and variables there are some columns which do not provide much information, are already in the previous dataset or are not of our interest for our current project, therefore, we will remove them. Since the merging will be done by name it is the only column present in other datasets that we will maintain. The name in the fifa dataset has numbers before which can lead to errors when merging as well, so we will have to remove it.
 
 ```{r}
 colnames(data_fifa)
@@ -298,15 +288,11 @@ data_fifa$Name <- gsub("[0-9]+", "", data_fifa$Name)
 
 ```
 
-
 Now that we have cleaned a bit the other dataset we can proceed to merging it with this new and last one.
 
 For this there is a problem, where FIFA players have different name formats ("Messi", "L. Messi" or "Lionel Messi"). To solve this we will first standardized name to the format "L. Messi" and then extract the surnames for both datasets and join by means of the surname.
 
 Also we will replace before all of this all characters from other languages into the closest one in the English alphabet ("è" -\> "e")
-
-
-
 
 ```{r}
 # Replacing characters by its closest English alphabet character
@@ -350,7 +336,8 @@ full_data <- distinct(full_data, Player, .keep_all = TRUE)
 
 
 ```
-We observe that some observations has been lost. If we look closely at the data most of those observations not merged do not appear in the FIFA dataset so, since they are not very relevant we can exclude them confidently.
+
+We observe that some observations have been lost. If we look closely at the data most of those observations not merged do not appear in the FIFA dataset so, since they are not very relevant we can exclude them confidently.
 
 ```{r}
 # Observations not merged
@@ -359,51 +346,106 @@ not_merged <- anti_join(final_players, full_data, by = "Player")
 
 **Outliers**
 
-Outliers are actually important as many players could have a fantastic season compared to others so it is important to keep them. But there are many players who are not in the managers rotation and they dont play much minutes so we will eliminate them as they will not provide useful information.
-
+Outliers are actually important as many players could have a fantastic season compared to others so it is important to keep them. But there are many players who are not in the managers rotation and they do not play much minutes so we will eliminate them as they will not provide useful information.
 
 ```{r}
 ggplot(full_data) +
-  aes(x = Minutes)+
+  aes(x = X90s)+  # X90S ESTA MAL PQ EL MAXIMO ANTES ERAN ALREDEDOR DE 90-80
   geom_area(stat = "bin",fill="lightblue", color="blue", binwidth = 40) + 
    theme_minimal()
 ```
 
-
 ```{r}
 
 # Eliminating players that have not played much
-full_data <- full_data[full_data$Starts > 2,]
-
-# ESTO PASA DE 2200 JUGADORES A UNOS 1800, PERO AL HACER EL GGPLOT DE ARRIBA DE NUEVO, LOS JUGADORES CON 0 MINUTOS NO LOS ELIMINO Y NO SE PORQUE NO.
+full_data <- full_data[full_data$X90s > 2,]
 ```
 
-
-
+**Exploratory Data Analisys**
 
 We will now create some graphs to generate some insights and obtain information about the players.
 
-We will know focus on goals and assists as they are one of the most important variables as goals and assists win games. In this plot, we can see as expected that forwards have higher values, it is also remarkable that we have some goalkeepers with an assist or goal. Players above the line have scored less goals than expected while players further to the right and below the line have scored more goals than it was expected.
+Focusing now on goals and assists, as they are one of the most important variables as goals and assists make teams win games, we create this graph.
+
+In this plot, we can see as expected that forwards have higher values, it is also remarkable that we have some goalkeepers with an assist or goal. Players above the line have scored less goals than expected while players further to the right and below the line have scored more goals than it was expected. Therefore it is desirable to be on the bottom right of the plot for great goals and assists conversion.
+
+Also we can clearly see that there is a linear relationship between both variables.
 
 ```{r}
-ggplot(full_data)+
+plot <- ggplot(full_data)+
   aes(x = Assists+Goals, y = ExpectedGoals+ExpectedAssists, color = Pos)+
-  geom_point()+
-  geom_text(
-    data = subset(full_data, Assists+Goals > 25),
+  geom_point(alpha=0.85)+
+  geom_text_repel(
+    data = subset(full_data, Assists + Goals > 20), 
     aes(label = Player),
-    vjust = -0.5,
-    hjust = 0.5,
-    size = 2,
-    )+
+    size = 2
+  ) +
   geom_abline()+
-  ggtitle(" Goals and Assists vs Expected Goals and Assists")
+  ggtitle(" Goals and Assists vs Expected Goals and Assists")+
+  theme(plot.title = element_text(hjust = 0.5))
 
+# Save the plot 
+ggsave("goals_assists_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
 
 ```
-Clearly there seems to be a linear relation between both of them
 
+In this plot we focus on offensive players. Usually players that are more game-changing are targeted by opposing players, and fouling them is one of the most common strategies to stop them. This is why in this plot we compare fouls drawn and the success chance in dribbles.
 
+In the plot we can see that players that are good dribblers are usually the most fouled, and also have many carries. The biggest example of this is Vinicius Jr.
 
+```{r}
+plot <- ggplot(full_data)+
+  aes(x = PercSuccessfulDribbles, y = FoulsDrawn, color = Pos, size=Carries)+
+  geom_point(alpha = 0.85)+
+  scale_size_continuous(range = c(1, 8)) +
+  geom_text_repel(
+    data = subset(full_data, FoulsDrawn > 60), 
+    aes(label = Player),
+    size = 2
+  ) +
+  ggtitle("Percentage of Succesful Dribbles vs Fouls Drawn")+
+  theme(plot.title = element_text(hjust = 0.5))
 
+# Save the plot 
+ggsave("dribbles_fouls_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
+```
 
+```{r}
+plot <- ggplot(full_data, aes(x=CompletedPasses/AttemptedPasses, y=PassingDistance)) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", colour="white")+
+  ggtitle("Percentage of Succesful Passes vs Passing Distance")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggsave("pass_perc_distance_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
+```
+
+```{r}
+# Select only the relevant columns for the correlogram
+correlogram_data <- full_data[, c("SuccessfulTackles", "Blocks", "FoulsCommited", "RecoveredBalls", "PercAerialDuelsWon")]
+
+# Create the correlogram
+plot <- ggpairs(correlogram_data, 
+        title = "Correlogram of Defensive Actions",
+        lower = list(continuous = wrap("points", alpha = 0.3)),
+        upper = list(continuous = wrap("cor", size = 4)), 
+        ggplot2::aes(colour=full_data$Pos)) +
+  theme(plot.title = element_text(hjust = 0.5))  # Center the title
+
+ggsave("defense_corr_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
+```
+
+```{r}
+plot <- ggplot(full_data)+
+  aes(x = GoalsAllowed, y = ShotsOnTargetAgainst, color = Pos)+
+  geom_point(alpha = 0.85)+
+  geom_text_repel(
+    data = subset(full_data, GoalsAllowed > 60), 
+    aes(label = Player),
+    size = 2
+  ) +
+  ggtitle("Goals Conceded vs Shot on Target against Keeper")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Save the plot 
+ggsave("goalkeepers_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
+```
