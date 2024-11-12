@@ -38,7 +38,6 @@ playingtime <- read.csv("Big5-playingtimeStats22-23.csv", sep = ",")
 
 ```
 
-
 **DATA PREPROCESSING**
 
 Merging all datasets in one when each of them has a lot of datasets will potentially cause many problems in the long run, we won't handle duplicates or NA values just yet and fully focus on reducing the amount of dimensions each dataset has.
@@ -226,6 +225,7 @@ final_players <- final_players %>%
 # Check that there are no duplicates now
 sum(duplicated(final_players))
 ```
+
 **NA Values**
 
 Using a barplot to see the columns with NA values.
@@ -233,8 +233,6 @@ Using a barplot to see the columns with NA values.
 ```{r}
 barplot(colMeans(is.na(final_players)), las=2)
 ```
-
-
 
 **Median Imputation**
 
@@ -369,8 +367,7 @@ X90s is a representation of the total minutes played divided by 90, which shows 
 full_data <- full_data[full_data$X90s > 2,]
 ```
 
-
-**Exploratory Data Analisys**
+**Exploratory Data Analysis**
 
 We will now create some graphs to generate some insights and obtain information about the players.
 
@@ -473,10 +470,9 @@ plot5 <- ggplot(full_data)+
 #ggsave("goalkeepers_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
 ```
 
-
 **Descriptive Analysis**
 
-Before doing PCA we have to check whether or not we scale the data and we have to select the numeric columns and the columns we are interested in. We will start by chosing some numeric columns and plotting them to see their distribution.
+Before using any algorithm on the data we have to check whether or not we scale the data, and also select the numeric columns and the ones we are interested in. We will start by choosing some numeric columns and plotting them to see their distribution.
 
 ```{r}
 
@@ -496,7 +492,7 @@ for (col_name in names(numeric_columns)) {
 
 ```
 
-Many of these plots are left skewed due to the number of goalkeepers as they dont have any value in this variables. For goalkeeper stats it would happen exactly the same. Now we will use all numeric variables and see the relations and information we can obtain.
+Most of these plots are left skewed, one reason for this is the number of goalkeepers as they do not have any value in this variables. For goalkeeper stats it would happen exactly the same. Now we will use all numeric variables and see the relations and information we can obtain.
 
 ```{r}
 # Was used to show the different histograms, now we have to delete it
@@ -511,17 +507,20 @@ boxplot(numeric_columns, las=2, col="darkblue")
 # ESTA HECHO CON NUMERIC COLUMNS NO NUMERIC DATA YA QUE SE VE PEOR
 ```
 
-These boxplots clearly show that we will need to scale the data in order to perform pca
+These boxplots clearly show that we will need to scale the data before performing any algorithm on them.
+
+But before that we can also see that the data is mostly left skewed, to fix this we can apply a root to the numeric columns.
 
 ```{r}
+
 # Scaling the data
-scaled_data = scale(numeric_columns)#Numeric columns no numeric data
+scaled_data <- scale(sqrt(numeric_data)) #Numeric columns no numeric data
 
 boxplot(scaled_data, las=2, col="darkblue")
 
 ```
 
-Lookin at the correlation between the different variables, to see if we can obtain some insights before the PCA
+Let's look at the correlation between the different variables, to see if we can obtain some insights before running any algorithm.
 
 ```{r}
 correlation_matrix = cor(numeric_columns)
@@ -533,7 +532,7 @@ ggcorr(numeric_columns, label = T, hjust = 0.9, layout.exp = 1.5)
 
 This shows the correlation for the different variables, some of these have high correlation which could affect the PCA. There are also some variables with no or very low correlation which is why the PCA could offer more information about the variables.
 
-**PCA**
+**PRINCIPAL COMPONENT ANALYSIS**
 
 ```{r}
 
@@ -543,13 +542,13 @@ summary(pca)
 
 ```
 
-
 ```{r}
 # Using factoextra package to see the variances explaine by each component
 fviz_screeplot(pca, addlabels = TRUE)
 ```
+
 3 dimensions explain 65% of the variability
- 
+
 **Interpretation of PCA components**
 
 ```{r}
@@ -560,7 +559,6 @@ fviz_contrib(pca, choice = "var", axes = 1)
 ?fviz_contrib 
 ```
 
-
 This shows that touches and carries are really important as well as passes done, clearly highlights midfielders who make a lot of runs and are usually the players who most balls touch and are responsible for generating the attack in most teams.
 
 ```{r}
@@ -569,8 +567,8 @@ par(mfrow = c(1,2))
 barplot(pca$rotation[,2], las=2, col="darkblue")
 fviz_contrib(pca, choice = "var", axes = 2)
 ```
-This second graph gives a lot of importance to goalkeeper stats and focuses on Saves, Shots Against and Clean Sheets which are goalkeeper stats where other players have no values.
 
+This second graph gives a lot of importance to goalkeeper stats and focuses on Saves, Shots Against and Clean Sheets which are goalkeeper stats where other players have no values.
 
 ```{r}
 # Third Component
@@ -580,7 +578,30 @@ fviz_contrib(pca, choice = "var", axes = 3)
 
 ```
 
-The third component is clearly for attacking positions as Expected Goals and Shots on Target are the most imortant variables, goals and shots also have high contributions as well as offsides which are usually commited by attackers.
+The third component is clearly for attacking positions as Expected Goals and Shots on Target are the most important variables, goals and shots also have high contributions as well as offsides which are usually committed by attackers.
 
+**FACTOR ANALYSIS**
 
+Factor analysis can be very useful in this case. As we know, the factor analysis searches for latent traits in the data, and so can it do in this dataset. Hidden features could range from offensive skill and defensive capability to physical fitness. Therefore it could help us interpret the performance on players based on more broad terms rather than just individual statistics.
 
+Combining all of this, factor analysis could be especially valuable if we decide to do any type of scouting, since we could use extracted factors to identify playmakers, dribblers or versatile players.
+
+To finish the justification, it can also help us reduce the dimensionality of the data for training future algorithms as well as minimizing redundancy for highly correlated variables.
+
+```{r}
+library("psych")
+
+players.f <- fa(scaled_data, 3)
+players.f
+
+```
+
+```{r}
+model <- mediate(
+  Goals ~  Value... + X90s + Carries + Assists,
+  data   = scaled_data,
+  n.iter = 100,
+  plot   = FALSE
+)   
+mediate.diagram(model, digits=3)
+```
