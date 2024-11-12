@@ -16,12 +16,10 @@ library("ggplot2")
 library("ggrepel")
 library("stringi")
 library("GGally")
-library("sf")
-library("mice")
-
+library("factoextra")
 ```
 
-We have different datasets which contain different statistics from different players which we will need to combine to obtain a richer ando more useful dataset.
+We have different datasets which contain different statistics from different players which we will need to combine to obtain a richer and more useful dataset.
 
 ```{r}
 # Reading the different datasets
@@ -32,9 +30,6 @@ passing_stats <- read.csv("Big5-passingStats22-23.csv", sep = ",")
 possession_stats <- read.csv("Big5-possessionStats22-23.csv", sep = ",")
 shooting_stats <- read.csv("Big5-shootingStats22-23.csv", sep = ",")
 
-#Passing types information is included in passing stats
-# Csv statsStats has already included statistics
-
 # Datasets for goalkeepers
 keepers_one <- read.csv("Big5-keepersStats22-23.csv", sep = ",")
 
@@ -42,6 +37,7 @@ keepers_one <- read.csv("Big5-keepersStats22-23.csv", sep = ",")
 playingtime <- read.csv("Big5-playingtimeStats22-23.csv", sep = ",")
 
 ```
+
 
 **DATA PREPROCESSING**
 
@@ -52,15 +48,15 @@ Therefore, we will look at each dataset independently handling the unimportant c
 ```{r}
 # Defense Stats
 
-# The total amount of tackles is the sum of Def.3rd, Mid.3rd and Att.3rd which just refer to where those tackles were made, Tkl.Int is a sum of both tackles and interceptions therefore we can keep this columns and eliminate both interceptions and tackles. Blocks are a sum of Sh and Pass which refers to the different type of blocks. Tkl.1 is tackles in the first half, already included in the first variable. Tkl.1 measures the percentage of lost balls when Att is done, it divides Att and Lost
+# The total amount of tackles is the sum of Def.3rd, Mid.3rd and Att.3rd which just refer to where those tackles were made, Tkl.Int is a sum of both tackles and interceptions therefore we can keep this columns and eliminate both interceptions and tackles. Blocks are a sum of Sh and Pass which refers to the different type of blocks. Tkl.1 is tackles in the first half, already included in the first variable. Tkl.1 measures the percentage of lost balls when Att is done, it divides Att and Lost. Many players dont have errors, and at the same time errors leading to goal are mostly done by defenders as an error in the defense side is more crucial, therefore we will eliminate it as well.
 
-defense_cols <- c("Def.3rd","Mid.3rd","Att.3rd","Tkl.1","Int","Sh", "Pass", "Att", "Lost")
+defense_cols <- c("Def.3rd","Mid.3rd","Att.3rd","Tkl.1","Int","Sh", "Pass", "Att", "Lost","Err")
 
 defense_stats <- defense_stats %>% select(-all_of(defense_cols))
 
 defense_stats <- defense_stats %>% 
   rename(TacklesDone = Tkl, SuccessfulTackles = TklW, TacklesANDIntercep = Tkl.Int,
-         Clearances = Clr, Errors = Err, PercDribblersTackled = Tkl.)
+         Clearances = Clr, PercDribblersTackled = Tkl.)
 
 
 # GCA stats
@@ -139,19 +135,18 @@ keepers_one <- keepers_one %>%
 
 # Playing Time
 
-# Mn.Mp can be calculated as Min/Mp, Mn. can also be calculated. Mn.Start will be Min/Starts, Compl can be seen as it is not really important. The same for all sub variables as with minutes we can already kind of see the amount of time played. We will remove Subs, Mn.Sub, unSub. X... is substraction of onG and onGA so we can remove it, and the same for the 90s, X...90. Same for On.Off.1 and On.Off. Minutes is a character therefore we will have to change to numeric
+# Min can be calcualted by 90 * X90S.Mn.Mp can be calculated as Min/Mp, Mn. can also be calculated. Mn.Start will be Min/Starts, Compl can be seen as it is not really important. The same for all sub variables as with minutes we can already kind of see the amount of time played. We will remove Subs, Mn.Sub, unSub. X... is substraction of onG and onGA so we can remove it, and the same for the 90s, X...90. Same for On.Off.1 and On.Off. Minutes is a character therefore we will have to change to numeric
 
-playing_cols <- c("Mn.MP","Min.", "Mn.Start", "Compl", "Subs", "Mn.Sub", "unSub","X...", "X...90", "On.Off", "On.Off.1", "xG...", "xG...90")
+playing_cols <- c("Mn.MP","Min.","Min", "Mn.Start", "Compl", "Subs", "Mn.Sub", "unSub","X...", "X...90", "On.Off", "On.Off.1", "xG...", "xG...90")
 
 playingtime <- playingtime %>% select(-all_of(playing_cols))
 
 playingtime <- playingtime %>% 
-  rename(MatchesPlayed = MP, Minutes = Min,PointsPerMatch = PPM, GoalsByTeam = onG, GoalsAgainstTeam = onGA, ExepectedGoalsByTeam = onxG, ExpectedGoalsAgainstTeam = onxGA )
+  rename(MatchesPlayed = MP, PointsPerMatch = PPM, GoalsByTeam = onG, GoalsAgainstTeam = onGA, ExepectedGoalsByTeam = onxG, ExpectedGoalsAgainstTeam = onxGA )
 
-# Goalkeepers have values with decimal , instead of . so we will also change it
-playingtime$Minutes <- gsub(",",".", playingtime$Minutes)
 
-playingtime$Minutes = as.numeric(playingtime$Minutes)
+
+
 
 ```
 
@@ -210,7 +205,7 @@ We observe many redundancies in this new dataset, such as that the nations are r
 final_players$Nation <- gsub("[a-z]", "", final_players$Nation)
 # Saving only the first position
 final_players$Pos <- substr(final_players$Pos,1,2)
-# Removing lower case before leaguew
+# Removing lower case before leagues
 final_players$Comp <- substr(final_players$Comp, 4, nchar(final_players$Comp))
 
 
@@ -231,10 +226,19 @@ final_players <- final_players %>%
 # Check that there are no duplicates now
 sum(duplicated(final_players))
 ```
+**NA Values**
+
+Using a barplot to see the columns with NA values.
+
+```{r}
+barplot(colMeans(is.na(final_players)), las=2)
+```
+
+
 
 **Median Imputation**
 
-Now we have to deal with NA values. Since all NA values are in numerical columns, we can replace these NAs by the median of that column.
+Since all NA values are in numerical columns, we can replace these NAs by the median of that column.
 
 ```{r}
 # Replace NA values with the median of each column
@@ -251,8 +255,8 @@ We see that this dataset has many statistics for players, but we could also bene
 # Reading complimentary data and removing unnecessary columns
 data_fifa <- read.csv("CLEAN_FIFA23_official_data.csv")
 head(data_fifa)
-skim(data_fifa)
 colnames(data_fifa)
+
 # Checking for duplicate values
 sum(duplicated(data_fifa$Name))
 ```
@@ -273,12 +277,12 @@ sum(duplicated(final_players))
 
 ```
 
-We can also see that the dataset is already clean with no NA values but looking at the different columns and variables there are some columns which do not provide much information, are already in the previous dataset or are not of our interest for our current project, therefore, we will remove them. Since the merging will be done by name it is the only column present in other datasets that we will maintain. The name in the fifa dataset has numbers before which can lead to errors when merging as well, so we will have to remove it.
+We can also see that the dataset is already clean with no NA values but looking at the different columns and variables there are some columns which do not provide much information, are already in the previous dataset or are not of our interest for our current project, therefore, we will remove them. Since the merging will be done by name it is the only column present in other datasets that we will maintain. The names of the players in the fifa dataset has numbers before which can lead to errors when merging as well, so we will have to remove it.
 
 ```{r}
 colnames(data_fifa)
 
-cols <- c("X", "ID", "Age", "Photo","Flag", "Club", "Club.Logo", "Special","Work.Rate","Skill.Moves", "Weak.Foot","Body.Type", "Real.Face", "Position", "Joined", "Loaned.From", "Contract.Valid.Until","Release.Clause...", "Kit.Number", "Best.Overall.Rating", "Year_Joined", "Potential", "Preferred.Foot", "International.Reputation")
+cols <- c("X", "ID", "Age", "Photo","Flag", "Club", "Club.Logo", "Special","Work.Rate","Skill.Moves", "Weak.Foot","Body.Type", "Real.Face", "Position", "Joined", "Loaned.From", "Contract.Valid.Until","Release.Clause...", "Kit.Number", "Best.Overall.Rating", "Year_Joined", "Potential", "Preferred.Foot", "International.Reputation", "Nationality")
 
 data_fifa <- data_fifa %>% select(-all_of(cols))
 
@@ -352,16 +356,19 @@ Outliers are actually important as many players could have a fantastic season co
 
 ```{r}
 ggplot(full_data) +
-  aes(x = X90s)+  # X90S ESTA MAL PQ EL MAXIMO ANTES ERAN ALREDEDOR DE 90-80
+  aes(x = X90s)+ 
   geom_area(stat = "bin",fill="lightblue", color="blue", binwidth = 40) + 
    theme_minimal()
 ```
+
+X90s is a representation of the total minutes played divided by 90, which shows more or less the amount of games played. Most leagues have a total of 38 games of 90 minutes, with the added minutes, it makes sense the maximum value is 40. But what is really useful here is that there are many players who have not even played a single game and therefore will be irrelevant in our project and analysis, so we will remove them.
 
 ```{r}
 
 # Eliminating players that have not played much
 full_data <- full_data[full_data$X90s > 2,]
 ```
+
 
 **Exploratory Data Analisys**
 
@@ -374,11 +381,11 @@ In this plot, we can see as expected that forwards have higher values, it is als
 Also we can clearly see that there is a linear relationship between both variables.
 
 ```{r}
-plot <- ggplot(full_data)+
+plot1 <- ggplot(full_data)+
   aes(x = Assists+Goals, y = ExpectedGoals+ExpectedAssists, color = Pos)+
   geom_point(alpha=0.85)+
   geom_text_repel(
-    data = subset(full_data, Assists + Goals > 20), 
+    data = subset(full_data, Assists + Goals > 25), 
     aes(label = Player),
     size = 2
   ) +
@@ -389,7 +396,7 @@ plot <- ggplot(full_data)+
   theme(plot.title = element_text(hjust = 0.5))
 
 # Save the plot 
-ggsave("goals_assists_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
+#ggsave("goals_assists_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
 
 ```
 
@@ -398,12 +405,12 @@ In this plot we focus on offensive players. Usually players that are more game-c
 In the plot we can see that players that are good dribblers are usually the most fouled, and also have many carries. The biggest example of this is Vinicius Jr.
 
 ```{r}
-plot <- ggplot(full_data)+
+plot2 <- ggplot(full_data)+
   aes(x = PercSuccessfulDribbles, y = FoulsDrawn, color = Pos, size=Carries)+
   geom_point(alpha = 0.85)+
   scale_size_continuous(range = c(1, 8)) +
   geom_text_repel(
-    data = subset(full_data, FoulsDrawn > 60), 
+    data = subset(full_data, FoulsDrawn > 70), 
     aes(label = Player),
     size = 2
   ) +
@@ -413,20 +420,20 @@ plot <- ggplot(full_data)+
   theme(plot.title = element_text(hjust = 0.5))
 
 # Save the plot 
-ggsave("dribbles_fouls_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
+#ggsave("dribbles_fouls_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
 ```
 
 In this plot we focus on passes. With this density graph, we observe the range where most players fall into, but also we observe that as players tend to pass more, their accuracy also increases.
 
 ```{r}
-plot <- ggplot(full_data, aes(x=100*CompletedPasses/AttemptedPasses, y=PassingDistance/X90s)) +
+plot3 <- ggplot(full_data, aes(x=100*CompletedPasses/AttemptedPasses, y=PassingDistance/X90s)) +
   stat_density_2d(aes(fill = ..level..), geom = "polygon", colour="white")+
   ggtitle("Pass Accuracy % vs Passing Distance per Game")+
   xlab("Pass Accuracy %") +                      
   ylab(" Avg. Passing Distance per Game") + 
   theme(plot.title = element_text(hjust = 0.5))
 
-ggsave("pass_perc_distance_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
+#ggsave("pass_perc_distance_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
 ```
 
 Next, we created a correlation plot for defensive actions. As we can see except Aerial Duels, the other ones are closely related. However, this defensive actions are more correlated in midfielders, and sometimes forwards, than in defenders which is surprising.
@@ -436,20 +443,20 @@ Next, we created a correlation plot for defensive actions. As we can see except 
 correlogram_data <- full_data[, c("SuccessfulTackles", "Blocks", "FoulsCommited", "RecoveredBalls", "PercAerialDuelsWon")]
 
 # Create the correlogram
-plot <- ggpairs(correlogram_data, 
+plot4 <- ggpairs(correlogram_data, 
         title = "Correlogram of Defensive Actions",
         lower = list(continuous = wrap("points", alpha = 0.3)),
         upper = list(continuous = wrap("cor", size = 4)), 
         ggplot2::aes(colour=full_data$Pos)) +
   theme(plot.title = element_text(hjust = 0.5))  # Center the title
 
-ggsave("defense_corr_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
+#ggsave("defense_corr_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
 ```
 
 Here we study goalkeepers. As we can see as the save % increases, the clean sheets also increase but the relation is not that clear, also there are some clear outliers, such as MarcAndre ter Stegen.
 
 ```{r}
-plot <- ggplot(full_data)+
+plot5 <- ggplot(full_data)+
   aes(x = 100*Saves/ShotsOnTargetAgainst, y = CleanSheets, color = Comp)+
   geom_point(alpha = 0.85)+
   geom_text_repel(
@@ -463,5 +470,117 @@ plot <- ggplot(full_data)+
   theme(plot.title = element_text(hjust = 0.5))
 
 # Save the plot 
-ggsave("goalkeepers_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
+#ggsave("goalkeepers_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
 ```
+
+
+**Descriptive Analysis**
+
+Before doing PCA we have to check whether or not we scale the data and we have to select the numeric columns and the columns we are interested in. We will start by chosing some numeric columns and plotting them to see their distribution.
+
+```{r}
+
+numeric_columns <- full_data[, c("X90s", "TacklesDone", "SuccessfulTackles", "PercDribblersTackled", "Blocks", "TacklesANDIntercep", "Clearances", "ShotCreatingActions", "GoalCreatingActions","PointsPerMatch","GoalsByTeam", "GoalsAgainstTeam")] 
+
+par(mfrow = c(3, 3)) # Adjust the layout for 4x4 grid to fit all histograms
+
+for (col_name in names(numeric_columns)) {
+  hist(
+    numeric_columns[[col_name]], 
+    main = paste("Histogram of", col_name), 
+    xlab = col_name, 
+    col = "skyblue", 
+    border = "white"
+  )
+}
+
+```
+
+Many of these plots are left skewed due to the number of goalkeepers as they dont have any value in this variables. For goalkeeper stats it would happen exactly the same. Now we will use all numeric variables and see the relations and information we can obtain.
+
+```{r}
+# Was used to show the different histograms, now we have to delete it
+par(mfrow = c(1, 1))
+
+
+# Need to select numeric data from the dataset
+numeric_data <- select_if(full_data, is.numeric)
+
+# Using boxplots to handle data
+boxplot(numeric_columns, las=2, col="darkblue")
+# ESTA HECHO CON NUMERIC COLUMNS NO NUMERIC DATA YA QUE SE VE PEOR
+```
+
+These boxplots clearly show that we will need to scale the data in order to perform pca
+
+```{r}
+# Scaling the data
+scaled_data = scale(numeric_columns)#Numeric columns no numeric data
+
+boxplot(scaled_data, las=2, col="darkblue")
+
+```
+
+Lookin at the correlation between the different variables, to see if we can obtain some insights before the PCA
+
+```{r}
+correlation_matrix = cor(numeric_columns)
+
+ggcorr(numeric_columns, label = T, hjust = 0.9, layout.exp = 1.5)
+
+
+```
+
+This shows the correlation for the different variables, some of these have high correlation which could affect the PCA. There are also some variables with no or very low correlation which is why the PCA could offer more information about the variables.
+
+**PCA**
+
+```{r}
+
+pca = prcomp(numeric_data, scale=T)
+
+summary(pca)
+
+```
+
+
+```{r}
+# Using factoextra package to see the variances explaine by each component
+fviz_screeplot(pca, addlabels = TRUE)
+```
+3 dimensions explain 65% of the variability
+ 
+**Interpretation of PCA components**
+
+```{r}
+# First Component
+par(mfrow = c(1,2))
+barplot(pca$rotation[,1], las=2, col="darkblue")
+fviz_contrib(pca, choice = "var", axes = 1)
+?fviz_contrib 
+```
+
+
+This shows that touches and carries are really important as well as passes done, clearly highlights midfielders who make a lot of runs and are usually the players who most balls touch and are responsible for generating the attack in most teams.
+
+```{r}
+# Second Component
+par(mfrow = c(1,2))
+barplot(pca$rotation[,2], las=2, col="darkblue")
+fviz_contrib(pca, choice = "var", axes = 2)
+```
+This second graph gives a lot of importance to goalkeeper stats and focuses on Saves, Shots Against and Clean Sheets which are goalkeeper stats where other players have no values.
+
+
+```{r}
+# Third Component
+par(mfrow = c(1,2))
+barplot(pca$rotation[,3], las=2, col="darkblue")
+fviz_contrib(pca, choice = "var", axes = 3)
+
+```
+
+The third component is clearly for attacking positions as Expected Goals and Shots on Target are the most imortant variables, goals and shots also have high contributions as well as offsides which are usually commited by attackers.
+
+
+
