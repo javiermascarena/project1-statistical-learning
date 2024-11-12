@@ -221,13 +221,12 @@ head(final_players)
 Apart from that we also see there are a total of +200 duplicates which could be from players who were transferred or were loaned mid-season. To deal with this, we will keep the entries with the most time played.
 
 ```{r}
-# Obtaining the data without repeated players
+# Removing duplicate players
 final_players <- final_players %>%
-  group_by(Player) %>%
-  # Keeping only observations with the most starts
-  slice_max(Starts, n = 1, with_ties = FALSE) %>%  
-  ungroup() %>%
-  distinct()
+  group_by(Player) %>%          
+  # Keep the observation with the most time played
+  slice_max(order_by = X90s, n = 1) %>%    
+  ungroup()
 
 # Check that there are no duplicates now
 sum(duplicated(final_players))
@@ -266,8 +265,7 @@ data_fifa <- data_fifa %>%
   group_by(Name) %>%
   # Keeping only observations with the most recent joined date
   slice_max(Joined, n = 1, with_ties = FALSE) %>%  
-  ungroup() %>%
-  distinct()
+  ungroup()
 
 # Check that there are no duplicates now
 sum(duplicated(final_players))
@@ -328,11 +326,15 @@ final_players$Surname <- sapply(strsplit(final_players$Player, " "), function(x)
 data_fifa$Surname <- sapply(strsplit(data_fifa$StandardizedName, " "), function(x) x[length(x)])
 
 # Merge both datasets by Surname
-full_data <- full_join(final_players, data_fifa, by = "Surname")
+full_data <- inner_join(final_players, data_fifa, by = "Surname")
 
 # Eliminating repeated values when merging has not been correct
 full_data <- na.omit(full_data)
-full_data <- distinct(full_data, Player, .keep_all = TRUE)
+full_data <- full_data %>%
+  group_by(Player) %>%          
+  # Keep the observation with the most time played
+  slice_max(order_by = GoalsAllowed, n = 1, with_ties = FALSE) %>%    
+  ungroup()
 
 
 ```
@@ -382,6 +384,8 @@ plot <- ggplot(full_data)+
   ) +
   geom_abline()+
   ggtitle(" Goals and Assists vs Expected Goals and Assists")+
+  xlab("Total Goals + Assists") +                      
+  ylab("Expected Goals + Assists") + 
   theme(plot.title = element_text(hjust = 0.5))
 
 # Save the plot 
@@ -403,21 +407,29 @@ plot <- ggplot(full_data)+
     aes(label = Player),
     size = 2
   ) +
-  ggtitle("Percentage of Succesful Dribbles vs Fouls Drawn")+
+  ggtitle("Successful Dribble % vs Fouls Drawn")+
+  xlab("Successful Dribble %") +                      
+  ylab("Fouls Drawn") + 
   theme(plot.title = element_text(hjust = 0.5))
 
 # Save the plot 
 ggsave("dribbles_fouls_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
 ```
 
+In this plot we focus on passes. With this density graph, we observe the range where most players fall into, but also we observe that as players tend to pass more, their accuracy also increases.
+
 ```{r}
-plot <- ggplot(full_data, aes(x=CompletedPasses/AttemptedPasses, y=PassingDistance)) +
+plot <- ggplot(full_data, aes(x=100*CompletedPasses/AttemptedPasses, y=PassingDistance/X90s)) +
   stat_density_2d(aes(fill = ..level..), geom = "polygon", colour="white")+
-  ggtitle("Percentage of Succesful Passes vs Passing Distance")+
+  ggtitle("Pass Accuracy % vs Passing Distance per Game")+
+  xlab("Pass Accuracy %") +                      
+  ylab(" Avg. Passing Distance per Game") + 
   theme(plot.title = element_text(hjust = 0.5))
 
 ggsave("pass_perc_distance_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
 ```
+
+Next, we created a correlation plot for defensive actions. As we can see except Aerial Duels, the other ones are closely related. However, this defensive actions are more correlated in midfielders, and sometimes forwards, than in defenders which is surprising.
 
 ```{r}
 # Select only the relevant columns for the correlogram
@@ -434,16 +446,20 @@ plot <- ggpairs(correlogram_data,
 ggsave("defense_corr_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
 ```
 
+Here we study goalkeepers. As we can see as the save % increases, the clean sheets also increase but the relation is not that clear, also there are some clear outliers, such as MarcAndre ter Stegen.
+
 ```{r}
 plot <- ggplot(full_data)+
-  aes(x = GoalsAllowed, y = ShotsOnTargetAgainst, color = Pos)+
+  aes(x = 100*Saves/ShotsOnTargetAgainst, y = CleanSheets, color = Comp)+
   geom_point(alpha = 0.85)+
   geom_text_repel(
-    data = subset(full_data, GoalsAllowed > 60), 
+    data = subset(full_data, Saves/ShotsOnTargetAgainst > 0.6 & CleanSheets >= 10), 
     aes(label = Player),
     size = 2
   ) +
-  ggtitle("Goals Conceded vs Shot on Target against Keeper")+
+  ggtitle("Save % vs Clean Sheets")+
+  xlab("Save %") +                      
+  ylab("Clean Sheets") + 
   theme(plot.title = element_text(hjust = 0.5))
 
 # Save the plot 
