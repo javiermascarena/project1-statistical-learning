@@ -17,6 +17,8 @@ library("ggrepel")
 library("stringi")
 library("GGally")
 library("factoextra")
+library("corrplot")
+library("FactoMineR")
 ```
 
 We have different datasets which contain different statistics from different players which we will need to combine to obtain a richer and more useful dataset.
@@ -338,7 +340,7 @@ full_data <- full_data %>%
   slice_max(order_by = GoalsAllowed, n = 1, with_ties = FALSE) %>%    
   ungroup()
 
-
+names = full_data[,1]
 ```
 
 We observe that some observations have been lost. If we look closely at the data most of those observations not merged do not appear in the FIFA dataset so, since they are not very relevant we can exclude them confidently.
@@ -492,7 +494,8 @@ for (col_name in names(numeric_columns)) {
 
 ```
 
-Most of these plots are left skewed, one reason for this is the number of goalkeepers as they do not have any value in this variables. For goalkeeper stats it would happen exactly the same. Now we will use all numeric variables and see the relations and information we can obtain.
+Most of these plots are left skewed, one reason for this is due to the number of goalkeepers, as these position has no value for these variables recorded. For goalkeeper stats it would happen exactly the same. Apart from that, most teams may have around 25 players, while the lineups are of 11 players, these leads to difficulties distributing the number of minutes between the players so the recorded stat for most players is low.
+Now we will use all numeric variables and see the relations and information we can obtain.
 
 ```{r}
 # Was used to show the different histograms, now we have to delete it
@@ -502,14 +505,14 @@ par(mfrow = c(1, 1))
 # Need to select numeric data from the dataset
 numeric_data <- select_if(full_data, is.numeric)
 
-# Using boxplots to handle data
+# Using boxplots to visualize a few columns
 boxplot(numeric_columns, las=2, col="darkblue")
-# ESTA HECHO CON NUMERIC COLUMNS NO NUMERIC DATA YA QUE SE VE PEOR
+
 ```
 
-These boxplots clearly show that we will need to scale the data before performing any algorithm on them.
+These boxplots clearly show that we will need to scale the data before performing any algorithm on them. This is due to the difference of variance between each variables.
 
-But before that we can also see that the data is mostly left skewed, to fix this we can apply a root to the numeric columns.
+As the data is mostly left skewed, to fix this we can apply a root to the numeric columns.
 
 ```{r}
 
@@ -519,47 +522,87 @@ scaled_data <- scale(sqrt(numeric_data)) #Numeric columns no numeric data
 boxplot(scaled_data, las=2, col="darkblue")
 
 ```
+The variables returned are now scaled, so there will be no big differences in variances. There are some very small boxplots in the middle, this is because this statistics refer to goalkeepers, where all players have a 0, and therefore the amount of outliers is big, but it actually corresponds to goalkeepers.
 
-Let's look at the correlation between the different variables, to see if we can obtain some insights before running any algorithm.
+
+Let's look at the correlation between the different variables, to see if we can obtain some insights before running any algorithm. Using the corrplot library for a better understanding.
 
 ```{r}
-correlation_matrix = cor(numeric_columns)
+correlation_matrix = cor(numeric_data)
 
-ggcorr(numeric_columns, label = T, hjust = 0.9, layout.exp = 1.5)
+corrplot(correlation_matrix, 
+         method = "ellipse",       
+         type = "lower",           
+         order = "hclust",         
+         tl.col = "black",         
+         tl.srt = 45,              
+         tl.cex = 0.5,             
+         cl.cex = 0.5)
 
+# eigen(correlation_matrix)
+# This line here would return 57 eigenvalues, one per column, it explains the amount of variance explained by each component.
+# It would also return the eigenvectors, which show the value of each variable in each component.
 
 ```
 
 This shows the correlation for the different variables, some of these have high correlation which could affect the PCA. There are also some variables with no or very low correlation which is why the PCA could offer more information about the variables.
 
+
 **PRINCIPAL COMPONENT ANALYSIS**
 
 ```{r}
-
-pca = prcomp(numeric_data, scale=T)
+#Scale is set to False as the data is already scaled and this could lead to errors
+pca = prcomp(scaled_data, scale=F)
 
 summary(pca)
+get_eigenvalue(pca)
 
 ```
 
+***Choosing the number of components***
+
 ```{r}
-# Using factoextra package to see the variances explaine by each component
+# Using factoextra package to see the variances explained by each component
 fviz_screeplot(pca, addlabels = TRUE)
 ```
 
-3 dimensions explain 65% of the variability
+2 dimensions explain 59.7% of the variability while 3 dimensions explain 71.11%.
+
+
+```{r}
+corrplot(
+  var$cos2, 
+  is.corr = FALSE, 
+  method = "color",               
+  type = "lower",                 
+  tl.cex = 0.5,                   
+  tl.srt = 45,                    
+  cl.cex = 0.5,
+  tl.col = "black",
+  title = "Representation of Variables by Each Component",
+  mar = c(0, 0, 2, 0) 
+)
+```
+This graph uses cos^2, which refers to the quality of representation of the different variables by each principal component. A high value for cos2 means the variable is well represented by each of the principal components.
+
+
+We have chosen to maintain 3 components.This is based on our previous graphs. In the previous scree plot,based on the elbow method we see a bigger drop from the second to the third component, apart from that the variance explained by the second component is fairly similar to the one explained by the third component. As the increase in variance explained was of 10 percent, yielding up to around 70% data which is very good and this is why we decided to maintain it up until the 3rd component.
+Moreover, on our most recent graph,it is easily seen that from Dim 15 to 57 there is basically no representation of the variables.In the first 3 dim, we can see different colors in most variables, this shows that they are well explained and represented. Although it is true that we could chose some more dimensions to explain better some missing variables, we want to focus on maintaining the highest amount of possible components while reducing the dimensionality as much as possible.
+
+
 
 **Interpretation of PCA components**
+
 
 ```{r}
 # First Component
 par(mfrow = c(1,2))
 barplot(pca$rotation[,1], las=2, col="darkblue")
 fviz_contrib(pca, choice = "var", axes = 1)
-?fviz_contrib 
+
 ```
 
-This shows that touches and carries are really important as well as passes done, clearly highlights midfielders who make a lot of runs and are usually the players who most balls touch and are responsible for generating the attack in most teams.
+This shows the most relevant variables. Which in this case are touches and carries which are really important as well as passes done, attempted and shot creating actions.These variables clearly highlights midfielders who make a lot of runs and are usually the players who most balls touch and are responsible for generating the attack in most teams.
 
 ```{r}
 # Second Component
@@ -568,7 +611,7 @@ barplot(pca$rotation[,2], las=2, col="darkblue")
 fviz_contrib(pca, choice = "var", axes = 2)
 ```
 
-This second graph gives a lot of importance to goalkeeper stats and focuses on Saves, Shots Against and Clean Sheets which are goalkeeper stats where other players have no values.
+This second graph gives a lot of importance to goalkeeper stats and focuses on Saves, Shots Against and Clean Sheets which are goalkeeper stats for which other players have no values. It also focuses on X90s and games played, these is also related to goalkeepers as most teams have one goalkeeper who plays most matches.
 
 ```{r}
 # Third Component
@@ -579,6 +622,102 @@ fviz_contrib(pca, choice = "var", axes = 3)
 ```
 
 The third component is clearly for attacking positions as Expected Goals and Shots on Target are the most important variables, goals and shots also have high contributions as well as offsides which are usually committed by attackers.
+
+
+Now, we will use biplots to see the different relations between the components.
+As the number of variables was really high, we used different values of cos2 to filter the amount of variables to obtain a clear view of the graphs.
+
+
+```{r}
+# Biplot for the 1st and 2nd principal components
+fviz_pca_biplot(pca, axes = c(1, 2), 
+                geom.ind = "point", 
+                pointsize = 3,      
+                label = "var",
+                select.var = list(cos2 = 0.8),
+                col.var = "blue",   
+                col.ind = "gray",
+                repel = T,
+                )  
+
+# Biplot for the 2nd and 3rd principal components
+fviz_pca_biplot(pca, axes = c(2, 3), 
+                geom.ind = "point",
+                pointsize = 2,
+                label = "var",
+                select.var = list(cos2 = 0.4),
+                col.var = "purple",
+                col.ind = "gray",
+                repel = T)
+
+# Biplot for the 1st and 3rd principal components
+fviz_pca_biplot(pca, axes = c(1, 3), 
+                geom.ind = "point",
+                pointsize = 2,
+                select.var = list(cos2 = 0.8),
+                label = "var",
+                col.var = "black",
+                col.ind = "gray",
+                repel = T)
+
+
+```
+The first graph is a really good visual example, as one one side we see many points together which are more than likely to be the goalkeepers.Then we have the rest of players joined together, by looking at the arrows it is really clear that these point in the direction of the most variance explained, the orthogonal variables are the goalkeeper variables which explain Dim2.
+The second graph again has some points separated to the left, which is the same direction of the arrows. The orthogonal vectors explain mostly forwards which is why we can see a weird shape of the graph, where on the far left are the goalkeepers and on the left down part the forwards.
+The third graph, is similar to the rest in that we have a bunch of points separated which are the goalkeepers, then we have the principal component 1 which clearly explain more variance with more points as it can easily be seen. This is also due to the fact that most teams have more midfielders in relation to other positions. Midfielders are usually a key part of the success of a team. The rest of points are on the direction of the orthogonal arrows, those points are the forwards.
+
+
+```{r}
+names <- full_data[[1]]
+# The best
+names[order(pca$x[,1])][1:10]
+```
+
+```{r}
+names[order(pca$x[,2])][1:6]
+names[order(pca$x[,2])][(length(names)-5):length(names)]
+```
+```{r}
+names[order(get_pca_ind(pca)$contrib[,1],decreasing=T)][1:10]
+```
+
+We also want to get an insight on the best football teams, the nations with the best players as well as the team with the best players
+```{r}
+team <- full_data[[4]]
+nation <- full_data[[2]]
+comp <- full_data[[5]]
+
+# Calculate the mean of PC1 (z1) by team
+team_mean <- data.frame(z1 = pca$x[,1], team = team) %>%
+  group_by(team) %>%
+  summarise(mean_z1 = mean(z1)) %>%
+  arrange(desc(mean_z1))
+
+# Display the team_mean data frame
+print(team_mean)
+
+# Calculate the mean of PC1 (z1) by nation
+nation_mean <- data.frame(z1 = pca$x[,1], nation = nation) %>%
+  group_by(nation) %>%
+  summarise(mean_z1 = mean(z1)) %>%
+  arrange(desc(mean_z1))
+
+# Display the nation_mean data frame
+print(nation_mean)
+
+# Calculate the mean of PC1 (z1) by competition
+comp_mean <- data.frame(z1 = pca$x[,1], comp = comp) %>%
+  group_by(comp) %>%
+  summarise(mean_z1 = mean(z1)) %>%
+  arrange(desc(mean_z1))
+
+# Display the comp_mean data frame
+print(comp_mean)
+```
+We see that the best league was the Ligue1, that the best players were from Russia and the best team was FC Barcelona
+
+
+
 
 **FACTOR ANALYSIS**
 
@@ -689,3 +828,9 @@ ggsave("factors_plot.png", plot = factors_plot, width = 14, height = 8, dpi = 30
 fa.parallel(scaled_data)
 players.f
 ```
+
+
+
+**Clustering**
+
+
