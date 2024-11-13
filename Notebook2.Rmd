@@ -590,18 +590,102 @@ To finish the justification, it can also help us reduce the dimensionality of th
 
 ```{r}
 library("psych")
+library("GPArotation")
+library("reshape2")
+library("tidyr")
+library("patchwork")
 
-players.f <- fa(scaled_data, 3)
-players.f
+players.f <- fa(scaled_data, 4, rotate="promax", scores="Bartlett")
+print(players.f, cut=0, digits=2)
+
+#fa.plot(players.f)
 
 ```
 
 ```{r}
-model <- mediate(
-  Goals ~  Value... + X90s + Carries + Assists,
-  data   = scaled_data,
-  n.iter = 100,
-  plot   = FALSE
-)   
-mediate.diagram(model, digits=3)
+# Extract loadings and convert to a data frame
+loadings <- as.data.frame(players.f$loadings[])
+loadings$Variable <- rownames(loadings)
+
+# 1st loading
+
+loadings$Variable <- factor(loadings$Variable, levels = loadings$Variable[order(loadings$MR1, decreasing = T)])
+
+factor1_plot <- ggplot(loadings, aes(x = Variable, y = MR1, fill = MR1 > 0)) +
+  geom_col(color="black") +  # Add points for each variable's loading
+  labs(title = "1st Factor Loadings for Each Variable", 
+       x = "Variables", 
+       y = "1st Loading") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
+        strip.text = element_text(size = 12),  # Increase facet title size
+        plot.title = element_text(size = 16),  # Increase overall title size
+        axis.title = element_text(size = 12)) +  # Increase axis title size
+  scale_color_manual(values = c("red", "blue"), 
+                     name = "Loading Sign", 
+                     labels = c("Negative", "Positive"))
+
+
+# 2nd loading
+
+loadings$Variable <- factor(loadings$Variable, levels = loadings$Variable[order(loadings$MR2, decreasing = T)])
+
+factor2_plot <- ggplot(loadings, aes(x = Variable, y = MR2, fill = MR2 > 0)) +
+  geom_col(color="black") +  # Add points for each variable's loading
+  labs(title = "2nd Factor Loadings for Each Variable", 
+       x = "Variables", 
+       y = "2nd Loading") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
+        strip.text = element_text(size = 12),  # Increase facet title size
+        plot.title = element_text(size = 16),  # Increase overall title size
+        axis.title = element_text(size = 12)) +  # Increase axis title size
+  scale_color_manual(values = c("red", "blue"), 
+                     name = "Loading Sign", 
+                     labels = c("Negative", "Positive"))
+
+# 3rd loading
+
+loadings$Variable <- factor(loadings$Variable, levels = loadings$Variable[order(loadings$MR3, decreasing = T)])
+
+factor3_plot <- ggplot(loadings, aes(x = Variable, y = MR3, fill = MR3 > 0)) +
+  geom_col(color="black") +  # Add points for each variable's loading
+  labs(title = "3rd Factor Loadings for Each Variable", 
+       x = "Variables", 
+       y = "3rd Loading") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
+        strip.text = element_text(size = 12),  # Increase facet title size
+        plot.title = element_text(size = 16),  # Increase overall title size
+        axis.title = element_text(size = 12)) +  # Increase axis title size
+  scale_color_manual(values = c("red", "blue"), 
+                     name = "Loading Sign", 
+                     labels = c("Negative", "Positive"))
+
+# 4th loading
+
+loadings$Variable <- factor(loadings$Variable, levels = loadings$Variable[order(loadings$MR4, decreasing = T)])
+
+factor4_plot <- ggplot(loadings, aes(x = Variable, y = MR4, fill = MR4 > 0)) +
+  geom_col(color="black") +  # Add points for each variable's loading
+  labs(title = "4th Factor Loadings for Each Variable", 
+       x = "Variables", 
+       y = "4th Loading") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
+        strip.text = element_text(size = 12),  # Increase facet title size
+        plot.title = element_text(size = 16),  # Increase overall title size
+        axis.title = element_text(size = 12)) +  # Increase axis title size
+  scale_color_manual(values = c("red", "blue"), 
+                     name = "Loading Sign", 
+                     labels = c("Negative", "Positive"))
+
+# Combining plots
+factors_plot <- (factor1_plot + factor2_plot) / (factor3_plot + factor4_plot)
+ggsave("factors_plot.png", plot = factors_plot, width = 14, height = 8, dpi = 300)
+```
+
+```{r}
+fa.parallel(scaled_data)
+players.f
 ```
