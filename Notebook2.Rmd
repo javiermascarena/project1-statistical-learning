@@ -19,6 +19,13 @@ library("GGally")
 library("factoextra")
 library("corrplot")
 library("FactoMineR")
+library("psych")
+library("GPArotation")
+library("reshape2")
+library("tidyr")
+library("patchwork")
+library("ellipse")
+library("RColorBrewer")
 ```
 
 We have different datasets which contain different statistics from different players which we will need to combine to obtain a richer and more useful dataset.
@@ -144,11 +151,6 @@ playingtime <- playingtime %>% select(-all_of(playing_cols))
 
 playingtime <- playingtime %>% 
   rename(MatchesPlayed = MP, PointsPerMatch = PPM, GoalsByTeam = onG, GoalsAgainstTeam = onGA, ExepectedGoalsByTeam = onxG, ExpectedGoalsAgainstTeam = onxGA )
-
-
-
-
-
 ```
 
 Merging all datasets according to different columns and dealing with missing values and duplicates later, this can be done with the inner join function taken into account that all datasets have the same 8 first columns.
@@ -494,8 +496,7 @@ for (col_name in names(numeric_columns)) {
 
 ```
 
-Most of these plots are left skewed, one reason for this is due to the number of goalkeepers, as these position has no value for these variables recorded. For goalkeeper stats it would happen exactly the same. Apart from that, most teams may have around 25 players, while the lineups are of 11 players, these leads to difficulties distributing the number of minutes between the players so the recorded stat for most players is low.
-Now we will use all numeric variables and see the relations and information we can obtain.
+Most of these plots are left skewed, one reason for this is due to the number of goalkeepers, as these position has no value for these variables recorded. For goalkeeper stats it would happen exactly the same. Apart from that, most teams may have around 25 players, while the lineups are of 11 players, these leads to difficulties distributing the number of minutes between the players so the recorded stat for most players is low. Now we will use all numeric variables and see the relations and information we can obtain.
 
 ```{r}
 # Was used to show the different histograms, now we have to delete it
@@ -522,8 +523,8 @@ scaled_data <- scale(sqrt(numeric_data)) #Numeric columns no numeric data
 boxplot(scaled_data, las=2, col="darkblue")
 
 ```
-The variables returned are now scaled, so there will be no big differences in variances. There are some very small boxplots in the middle, this is because this statistics refer to goalkeepers, where all players have a 0, and therefore the amount of outliers is big, but it actually corresponds to goalkeepers.
 
+The variables returned are now scaled, so there will be no big differences in variances. There are some very small boxplots in the middle, this is because this statistics refer to goalkeepers, where all players have a 0, and therefore the amount of outliers is big, but it actually corresponds to goalkeepers.
 
 Let's look at the correlation between the different variables, to see if we can obtain some insights before running any algorithm. Using the corrplot library for a better understanding.
 
@@ -539,6 +540,7 @@ corrplot(correlation_matrix,
          tl.cex = 0.5,             
          cl.cex = 0.5)
 
+
 # eigen(correlation_matrix)
 # This line here would return 57 eigenvalues, one per column, it explains the amount of variance explained by each component.
 # It would also return the eigenvectors, which show the value of each variable in each component.
@@ -546,7 +548,6 @@ corrplot(correlation_matrix,
 ```
 
 This shows the correlation for the different variables, some of these have high correlation which could affect the PCA. There are also some variables with no or very low correlation which is why the PCA could offer more information about the variables.
-
 
 **PRINCIPAL COMPONENT ANALYSIS**
 
@@ -568,31 +569,25 @@ fviz_screeplot(pca, addlabels = TRUE)
 
 2 dimensions explain 59.7% of the variability while 3 dimensions explain 71.11%.
 
-
 ```{r}
-corrplot(
-  var$cos2, 
-  is.corr = FALSE, 
-  method = "color",               
-  type = "lower",                 
-  tl.cex = 0.5,                   
-  tl.srt = 45,                    
-  cl.cex = 0.5,
-  tl.col = "black",
-  title = "Representation of Variables by Each Component",
-  mar = c(0, 0, 2, 0) 
-)
+#corrplot(
+#  var$cos2, 
+ # is.corr = FALSE, 
+  #method = "color",               
+  #type = "lower",                 
+  #tl.cex = 0.5,                   
+  #tl.srt = 45,                    
+  #cl.cex = 0.5,
+  #tl.col = "black",
+  #title = "Representation of Variables by Each Component",
+  #mar = c(0, 0, 2, 0))
 ```
-This graph uses cos^2, which refers to the quality of representation of the different variables by each principal component. A high value for cos2 means the variable is well represented by each of the principal components.
 
+This graph uses cos\^2, which refers to the quality of representation of the different variables by each principal component. A high value for cos2 means the variable is well represented by each of the principal components.
 
-We have chosen to maintain 3 components.This is based on our previous graphs. In the previous scree plot,based on the elbow method we see a bigger drop from the second to the third component, apart from that the variance explained by the second component is fairly similar to the one explained by the third component. As the increase in variance explained was of 10 percent, yielding up to around 70% data which is very good and this is why we decided to maintain it up until the 3rd component.
-Moreover, on our most recent graph,it is easily seen that from Dim 15 to 57 there is basically no representation of the variables.In the first 3 dim, we can see different colors in most variables, this shows that they are well explained and represented. Although it is true that we could chose some more dimensions to explain better some missing variables, we want to focus on maintaining the highest amount of possible components while reducing the dimensionality as much as possible.
-
-
+We have chosen to maintain 3 components.This is based on our previous graphs. In the previous scree plot,based on the elbow method we see a bigger drop from the second to the third component, apart from that the variance explained by the second component is fairly similar to the one explained by the third component. As the increase in variance explained was of 10 percent, yielding up to around 70% data which is very good and this is why we decided to maintain it up until the 3rd component. Moreover, on our most recent graph,it is easily seen that from Dim 15 to 57 there is basically no representation of the variables.In the first 3 dim, we can see different colors in most variables, this shows that they are well explained and represented. Although it is true that we could chose some more dimensions to explain better some missing variables, we want to focus on maintaining the highest amount of possible components while reducing the dimensionality as much as possible.
 
 **Interpretation of PCA components**
-
 
 ```{r}
 # First Component
@@ -623,10 +618,7 @@ fviz_contrib(pca, choice = "var", axes = 3)
 
 The third component is clearly for attacking positions as Expected Goals and Shots on Target are the most important variables, goals and shots also have high contributions as well as offsides which are usually committed by attackers.
 
-
-Now, we will use biplots to see the different relations between the components.
-As the number of variables was really high, we used different values of cos2 to filter the amount of variables to obtain a clear view of the graphs.
-
+Now, we will use biplots to see the different relations between the components. As the number of variables was really high, we used different values of cos2 to filter the amount of variables to obtain a clear view of the graphs.
 
 ```{r}
 # Biplot for the 1st and 2nd principal components
@@ -662,10 +654,8 @@ fviz_pca_biplot(pca, axes = c(1, 3),
 
 
 ```
-The first graph is a really good visual example, as one one side we see many points together which are more than likely to be the goalkeepers.Then we have the rest of players joined together, by looking at the arrows it is really clear that these point in the direction of the most variance explained, the orthogonal variables are the goalkeeper variables which explain Dim2.
-The second graph again has some points separated to the left, which is the same direction of the arrows. The orthogonal vectors explain mostly forwards which is why we can see a weird shape of the graph, where on the far left are the goalkeepers and on the left down part the forwards.
-The third graph, is similar to the rest in that we have a bunch of points separated which are the goalkeepers, then we have the principal component 1 which clearly explain more variance with more points as it can easily be seen. This is also due to the fact that most teams have more midfielders in relation to other positions. Midfielders are usually a key part of the success of a team. The rest of points are on the direction of the orthogonal arrows, those points are the forwards.
 
+The first graph is a really good visual example, as one one side we see many points together which are more than likely to be the goalkeepers.Then we have the rest of players joined together, by looking at the arrows it is really clear that these point in the direction of the most variance explained, the orthogonal variables are the goalkeeper variables which explain Dim2. The second graph again has some points separated to the left, which is the same direction of the arrows. The orthogonal vectors explain mostly forwards which is why we can see a weird shape of the graph, where on the far left are the goalkeepers and on the left down part the forwards. The third graph, is similar to the rest in that we have a bunch of points separated which are the goalkeepers, then we have the principal component 1 which clearly explain more variance with more points as it can easily be seen. This is also due to the fact that most teams have more midfielders in relation to other positions. Midfielders are usually a key part of the success of a team. The rest of points are on the direction of the orthogonal arrows, those points are the forwards.
 
 ```{r}
 names <- full_data[[1]]
@@ -677,11 +667,13 @@ names[order(pca$x[,1])][1:10]
 names[order(pca$x[,2])][1:6]
 names[order(pca$x[,2])][(length(names)-5):length(names)]
 ```
+
 ```{r}
 names[order(get_pca_ind(pca)$contrib[,1],decreasing=T)][1:10]
 ```
 
 We also want to get an insight on the best football teams, the nations with the best players as well as the team with the best players
+
 ```{r}
 team <- full_data[[4]]
 nation <- full_data[[2]]
@@ -714,32 +706,49 @@ comp_mean <- data.frame(z1 = pca$x[,1], comp = comp) %>%
 # Display the comp_mean data frame
 print(comp_mean)
 ```
+
 We see that the best league was the Ligue1, that the best players were from Russia and the best team was FC Barcelona
-
-
-
 
 **FACTOR ANALYSIS**
 
-Factor analysis can be very useful in this case. As we know, the factor analysis searches for latent traits in the data, and so can it do in this dataset. Hidden features could range from offensive skill and defensive capability to physical fitness. Therefore it could help us interpret the performance on players based on more broad terms rather than just individual statistics.
+**Motivation**
+
+Factor analysis can be very useful in this case. As we know, the factor analysis searches for latent traits in the data, and so can it do in this dataset. Hidden features could range from offensive skill and defensive capability to physical fitness. Therefore it could help us interpret the performance on players based on broader terms rather than just individual statistics.
 
 Combining all of this, factor analysis could be especially valuable if we decide to do any type of scouting, since we could use extracted factors to identify playmakers, dribblers or versatile players.
 
 To finish the justification, it can also help us reduce the dimensionality of the data for training future algorithms as well as minimizing redundancy for highly correlated variables.
 
+**Number of factors**
+
+Before performing factor analysis, one of the key metrics to decide is the number of factors we want to extract from the data. For this we will use parallel analysis, a method on which new random data is generated from our original data, and the eigenvalues of the actual and the new random data are compared.
+
+As we know in factor analysis we have the covariance matrix:$$ \Sigma = LL^T + \Psi $$ This matrix can be decomposed as:$$ \Sigma = L A L^T + \Psi$$where $$L$$ is the factors loading matrix and $$A$$ the matrix of eigenvalues (variance explained by each factor).
+
+To assess whether or not the factor is significant, what we do is compare the eigenvalues with the mean eigenvalue from the random data. Then if at the corresponding position$$\lambda < \mathbb{E}[\lambda_{\text{random}}] $$we can say that this factor does not explain more variability than what would be expected of random noise, so we will not use this factor.
+
 ```{r}
-library("psych")
-library("GPArotation")
-library("reshape2")
-library("tidyr")
-library("patchwork")
-
-players.f <- fa(scaled_data, 4, rotate="promax", scores="Bartlett")
-print(players.f, cut=0, digits=2)
-
-#fa.plot(players.f)
-
+# Parallel analysis plot
+fa.parallel(scaled_data, fa = "fa", show.legend = TRUE, main = "Parallel Analysis for Factor Analysis", sqrt=T)
 ```
+
+As we observe the real eigenvalues stay above the ones of random data, for factors from 1 to 8, so we will use 8 factors for factor analysis.
+
+Before doing the factor analysis there are two choices have to be made. For rotation we chose "oblimin" since we know from before that many variables are really correlated, therefore the rotation matrix does not force the factors to be orthogonal. For score we chose "regression" since it gives the most accurate and unbiased estimations of factors when they may be correlated.
+
+**Training**
+
+```{r}
+# Performing factor analysis and extracting 8 factors
+players.f <- fa(scaled_data, 8, rotate="oblimin", scores="regression")
+print(players.f, cut=0, digits=2)
+```
+
+**Factor explanation**
+
+As we can see from the output the total variance explained by all factors is 85%, but we can also observe that the variance explained by each factor alone decreases until it goes flat in about a 5% for the last three.
+
+To comprehend better how each factor is impacted by all variables, we make the following plot.
 
 ```{r}
 # Extract loadings and convert to a data frame
@@ -819,18 +828,132 @@ factor4_plot <- ggplot(loadings, aes(x = Variable, y = MR4, fill = MR4 > 0)) +
                      name = "Loading Sign", 
                      labels = c("Negative", "Positive"))
 
+# 5th loading
+
+loadings$Variable <- factor(loadings$Variable, levels = loadings$Variable[order(loadings$MR5, decreasing = T)])
+
+factor5_plot <- ggplot(loadings, aes(x = Variable, y = MR5, fill = MR5 > 0)) +
+  geom_col(color="black") +  # Add points for each variable's loading
+  labs(title = "5th Factor Loadings for Each Variable", 
+       x = "Variables", 
+       y = "5th Loading") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
+        strip.text = element_text(size = 12),  # Increase facet title size
+        plot.title = element_text(size = 16),  # Increase overall title size
+        axis.title = element_text(size = 12)) +  # Increase axis title size
+  scale_color_manual(values = c("red", "blue"), 
+                     name = "Loading Sign", 
+                     labels = c("Negative", "Positive"))
+
+
+# 6th loading
+
+loadings$Variable <- factor(loadings$Variable, levels = loadings$Variable[order(loadings$MR6, decreasing = T)])
+
+factor6_plot <- ggplot(loadings, aes(x = Variable, y = MR6, fill = MR6 > 0)) +
+  geom_col(color="black") +  # Add points for each variable's loading
+  labs(title = "6th Factor Loadings for Each Variable", 
+       x = "Variables", 
+       y = "6th Loading") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
+        strip.text = element_text(size = 12),  # Increase facet title size
+        plot.title = element_text(size = 16),  # Increase overall title size
+        axis.title = element_text(size = 12)) +  # Increase axis title size
+  scale_color_manual(values = c("red", "blue"), 
+                     name = "Loading Sign", 
+                     labels = c("Negative", "Positive"))
+
+# 7th loading
+
+loadings$Variable <- factor(loadings$Variable, levels = loadings$Variable[order(loadings$MR7, decreasing = T)])
+
+factor7_plot <- ggplot(loadings, aes(x = Variable, y = MR7, fill = MR7 > 0)) +
+  geom_col(color="black") +  # Add points for each variable's loading
+  labs(title = "7th Factor Loadings for Each Variable", 
+       x = "Variables", 
+       y = "7th Loading") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
+        strip.text = element_text(size = 12),  # Increase facet title size
+        plot.title = element_text(size = 16),  # Increase overall title size
+        axis.title = element_text(size = 12)) +  # Increase axis title size
+  scale_color_manual(values = c("red", "blue"), 
+                     name = "Loading Sign", 
+                     labels = c("Negative", "Positive"))
+
+# 8th loading
+
+loadings$Variable <- factor(loadings$Variable, levels = loadings$Variable[order(loadings$MR8, decreasing = T)])
+
+factor8_plot <- ggplot(loadings, aes(x = Variable, y = MR8, fill = MR8 > 0)) +
+  geom_col(color="black") +  # Add points for each variable's loading
+  labs(title = "8th Factor Loadings for Each Variable", 
+       x = "Variables", 
+       y = "8th Loading") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
+        strip.text = element_text(size = 12),  # Increase facet title size
+        plot.title = element_text(size = 16),  # Increase overall title size
+        axis.title = element_text(size = 12)) +  # Increase axis title size
+  scale_color_manual(values = c("red", "blue"), 
+                     name = "Loading Sign", 
+                     labels = c("Negative", "Positive"))
+
 # Combining plots
-factors_plot <- (factor1_plot + factor2_plot) / (factor3_plot + factor4_plot)
-ggsave("factors_plot.png", plot = factors_plot, width = 14, height = 8, dpi = 300)
+factors_plot <- (factor1_plot + factor2_plot) / (factor3_plot + factor4_plot) / (factor5_plot + factor6_plot) / (factor7_plot + factor8_plot)
+ggsave("factors_plot.png", plot = factors_plot, width = 14, height = 14, dpi = 300)
 ```
+
+For the first factor we observe that variables related to passes and game creation are the most influential, so the latent factor could be midfielders or game-creators. For the second factor goalkeeper variables influence it very positively, while variables of defenders, like tackles are very negative, so the latent factor could be goalkeepers (positive) and defenders (negative). For the last factor we see that offensive-game creators, the ones that create possible goal actions, are really high, so the latent factor should be players with this trait.
+
+For the rest, we observe that the data we added from the FIFA dataset seems to have its own factors, like factor 4 that explains high-value players. Moreover, interestingly we observe that the 5th factor only tries to explain older or younger players.
+
+Next, we will see who are the players that score highest and lowest for each factor, to gain more insights about them and confirm what we discussed just before.
 
 ```{r}
-fa.parallel(scaled_data)
-players.f
+# Extract factor scores from the players.f object
+factor_scores <- players.f$scores
+
+# The current order of factors is 2, 1, 8, 7, 3, 4, 6, 5
+current_order <- c(2, 1, 8, 7, 3, 4, 6, 5)
+
+# Loop through each factor to find the largest and smallest observation
+num_factors <- ncol(factor_scores)  # Number of factors (columns in factor_scores)
+
+# Create empty lists to store the indices of the largest and smallest observations for each factor
+largest_observations <- list()
+smallest_observations <- list()
+
+for (i in 1:num_factors) {
+  # Get the index of the observation with the largest score for the current factor
+  largest_idx <- which.max(factor_scores[, i])
+  
+  # Get the index of the observation with the smallest score for the current factor
+  smallest_idx <- which.min(factor_scores[, i])
+  
+  # Store the indices in the lists
+  largest_observations[[i]] <- largest_idx
+  smallest_observations[[i]] <- smallest_idx
+}
+
+# Print the results
+for (i in 1:num_factors) {
+  largest_idx <- largest_observations[[i]]
+  smallest_idx <- smallest_observations[[i]]
+  largest_name <- full_data$Player[largest_idx]
+  smallest_name <- full_data$Player[smallest_idx]
+  
+  cat("Factor", current_order[i], "\n")
+  cat("Largest observation index:", largest_name, "with score:", factor_scores[largest_idx, i], "\n")
+  cat("Smallest observation index:", smallest_name, "with score:", factor_scores[smallest_idx, i], "\n\n")
+}
+
 ```
 
+As we can see with the output, the hidden factors are clear. For example for factor 5 (the "age" factor), the highest one is Joaquin, a player that recently retired, while the lowest one is a player that is now 19. For factor 8, we get Bruno Fernandes, which is an offensive play-maker at Manchester United, just as we explained before. Furthermore, for factor 3 we observe that the highest-scoring player is Haaland, one of the best forwards in the world, and as we look closely at the variables that impact that factor, they are all goal-related.
 
+Finally, we observe that although this analysis does pretty well, it is not perfect, for example in factor 1 (midfielder focused) the highest scoring player is Lewis Dunk an average Premier League midfielder, while Rodri the best player at this places second just behind him.
 
-**Clustering**
-
-
+As a conclusion, we have pretty reasonably performed factor analysis which has given us meaningful hidden factors that could be used from scouting to improve a players performance, or many other possibilities.
