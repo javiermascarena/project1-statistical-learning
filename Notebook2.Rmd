@@ -476,7 +476,7 @@ plot5 <- ggplot(full_data)+
 #ggsave("goalkeepers_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
 ```
 
-**Descriptive Analysis**
+# **Descriptive Analysis**
 
 Before using any algorithm on the data we have to check whether or not we scale the data, and also select the numeric columns and the ones we are interested in. We will start by choosing some numeric columns and plotting them to see their distribution.
 
@@ -542,16 +542,43 @@ corrplot(correlation_matrix,
          tl.cex = 0.5,             
          cl.cex = 0.5)
 
-
-# eigen(correlation_matrix)
-# This line here would return 57 eigenvalues, one per column, it explains the amount of variance explained by each component.
-# It would also return the eigenvectors, which show the value of each variable in each component.
-
 ```
 
 This shows the correlation for the different variables, some of these have high correlation which could affect the PCA. There are also some variables with no or very low correlation which is why the PCA could offer more information about the variables.
 
 # **PRINCIPAL COMPONENT ANALYSIS**
+
+The main objective of PCA is to visualize a high dimensional space in lower dimensions, where the new reduced variables (principal components) will be uncorrelated and linear combinations of the original one. This will also reduce redundancy and find relationships between variables.
+
+The first principal component will show the direction of the variance. This component will be given by these formula:
+
+$$  Z_1 = X \mathbf{a}\_1 $$
+
+Where here X represents the data matrix, Z1 the first components and a_1 a vector of loadings that shows the direction of the original feature map.
+
+As we want to obtain the maximum information possible, we will maximize the variance of this component. The variance is given by these formula:
+
+$$
+s_{z_1}^2 = \mathbf{a}_1^T S \mathbf{a}_1
+$$
+
+Wjere S represents the covariance matrix of the data and a1 will be a unit vector so it is not affected by the scaling of variables. Scaling is important in PCA as we want to center every variables, because if not elements with a higher scale will have a larger variance affecting our analysis.
+
+As S is a covariance matrix we can decompose it by
+
+$$
+S \mathbf{v} = \lambda \mathbf{v}
+$$
+
+With this formula and the previous taking into account that a1 is a unit vector, we will obtain that the maximum variance for the first component will be its eigenvalue. The direction will be given by a1, its eigenvector. This exact procedure will be the same for the rest of components. As two uncorrelated variables have covariance 0, the next component will be orthogonal. The matrix with the principal components score will be given by:
+
+$$
+Z = X A_r
+$$
+
+Where Z is the matrix of the principal components, X the data matrix and Ar the principal component loadings.
+
+PCA will be essential in our project as our current dataset has around 60 dimensions, so reducing these number of dimensions to have a more visual and clearer representation of data could be crucial.
 
 ```{r}
 #Scale is set to False as the data is already scaled and this could lead to errors
@@ -562,65 +589,147 @@ get_eigenvalue(pca)
 
 ```
 
-# ***Choosing the number of components***
+## **Choosing the number of components**
+
+To select the number of clusters we will use the Kaiser Criterion.
+
+This criterion states that only the principal components with eigenvalues higher than 1 should appear in the analysis. It is of value greater than 1 as since each eigenvalue represents the variance contributed, a value lower than 1 would mean it explains less than the variables, so it is not useful.
+
+However, this method does not deal well with noise, therefore we will use parallel analysis which will solve this issue. What parallel analysis does is that it compares the eigenvalues of the actual data with the ones generated with random data following the structure of the original data.
 
 ```{r}
 # Using factoextra package to see the variances explained by each component
-fviz_screeplot(pca, addlabels = TRUE)
+fviz_eig(pca, addlabels = TRUE)
+
+# Parallel analysis plot
+fa.parallel(scaled_data, fa = "pc", show.legend = TRUE, main = "Parallel Analysis for PCA", sqrt=F)
+
+# This line here returns 57 eigenvalues, one per column, it explains the amount of variance explained by each component. It also returns the eigenvectors, which show the value of each variable in each component.
+get_eigenvalue(pca)
+
 ```
 
 2 dimensions explain 59.7% of the variability while 3 dimensions explain 71.11%.
 
+This next graph uses cos\^2, which refers to the quality of representation of the different variables by each principal component. It returns how much of the variable\`s variance is captured by that component.It returns values between 0 and 1 so it will be easy to interpret. A high value for cos2 means the variable is well represented by each of the principal components.
+
 ```{r}
-#corrplot(
-#  var$cos2, 
- # is.corr = FALSE, 
-  #method = "color",               
-  #type = "lower",                 
-  #tl.cex = 0.5,                   
-  #tl.srt = 45,                    
-  #cl.cex = 0.5,
-  #tl.col = "black",
-  #title = "Representation of Variables by Each Component",
-  #mar = c(0, 0, 2, 0))
+var <- get_pca_var(pca)
+corrplot(
+  var$cos2, 
+  is.corr = FALSE, 
+  method = "color",               
+  type = "lower",                 
+  tl.cex = 0.5,                   
+  tl.srt = 45,                    
+  cl.cex = 0.5,
+  tl.col = "black",
+  title = "Representation of Variables by Each Component",
+  mar = c(0, 0, 2, 0))
+
 ```
 
-This graph uses cos\^2, which refers to the quality of representation of the different variables by each principal component. A high value for cos2 means the variable is well represented by each of the principal components.
-
-We have chosen to maintain 3 components.This is based on our previous graphs. In the previous scree plot,based on the elbow method we see a bigger drop from the second to the third component, apart from that the variance explained by the second component is fairly similar to the one explained by the third component. As the increase in variance explained was of 10 percent, yielding up to around 70% data which is very good and this is why we decided to maintain it up until the 3rd component. Moreover, on our most recent graph,it is easily seen that from Dim 15 to 57 there is basically no representation of the variables.In the first 3 dim, we can see different colors in most variables, this shows that they are well explained and represented. Although it is true that we could chose some more dimensions to explain better some missing variables, we want to focus on maintaining the highest amount of possible components while reducing the dimensionality as much as possible.
+We have chosen to maintain 7 components.This is based on our previous graphs. In the previous scree plot,apart from the eigenvalues obtained we see that the variance explained by 7 components is 85.34% which is a really high value. Apart from that, parallel analysis returned a value of 7 confirming and giving more backup to our statement. Moreover, on our most recent graph,it is easily seen that from Dim 15 to 57 there is basically no representation of the variables. Most variables are well represented in the first few dimensions , and all variables are represented in some way when the 7th dimension is reached.As we started with dimension 57 and we want to reduce dimensionality as much as possible while retaining as much variance as possible, the election of 7 components seems to be pretty good.
 
 # **Interpretation of PCA components**
 
 ```{r}
 # First Component
 par(mfrow = c(1,2))
-barplot(pca$rotation[,1], las=2, col="darkblue")
+barplot(pca$rotation[, 1], 
+        horiz = TRUE,        
+        col = "darkblue",
+        main = "First Principal Component",
+        xlab = "Loading",
+        las = 1,             
+        cex.names = 0.5)
 fviz_contrib(pca, choice = "var", axes = 1)
 
-```
-
-This shows the most relevant variables. Which in this case are touches and carries which are really important as well as passes done, attempted and shot creating actions.These variables clearly highlights midfielders who make a lot of runs and are usually the players who most balls touch and are responsible for generating the attack in most teams.
-
-```{r}
 # Second Component
 par(mfrow = c(1,2))
-barplot(pca$rotation[,2], las=2, col="darkblue")
+barplot(pca$rotation[, 2], 
+        horiz = TRUE,        
+        col = "darkblue",
+        main = "Second Principal Component",
+        xlab = "Loading",
+        las = 1,             
+        cex.names = 0.5)
 fviz_contrib(pca, choice = "var", axes = 2)
-```
 
-This second graph gives a lot of importance to goalkeeper stats and focuses on Saves, Shots Against and Clean Sheets which are goalkeeper stats for which other players have no values. It also focuses on X90s and games played, these is also related to goalkeepers as most teams have one goalkeeper who plays most matches.
-
-```{r}
 # Third Component
 par(mfrow = c(1,2))
-barplot(pca$rotation[,3], las=2, col="darkblue")
+barplot(pca$rotation[, 3], 
+        horiz = TRUE,        
+        col = "darkblue",
+        main = "Third Principal Component",
+        xlab = "Loading",
+        las = 1,             
+        cex.names = 0.5)
 fviz_contrib(pca, choice = "var", axes = 3)
+
+# Fourth Component
+par(mfrow = c(1,2))
+barplot(pca$rotation[, 1], 
+        horiz = TRUE,        
+        col = "darkblue",
+        main = "Fourth Principal Component",
+        xlab = "Loading",
+        las = 1,             
+        cex.names = 0.5)
+fviz_contrib(pca, choice = "var", axes = 4)
+
+# Fifth Component
+par(mfrow = c(1,2))
+barplot(pca$rotation[, 1], 
+        horiz = TRUE,        
+        col = "darkblue",
+        main = "Fifth Principal Component",
+        xlab = "Loading",
+        las = 1,             
+        cex.names = 0.5)
+fviz_contrib(pca, choice = "var", axes = 5)
+
+# Sixth Component
+par(mfrow = c(1,2))
+barplot(pca$rotation[, 6], 
+        horiz = TRUE,        
+        col = "darkblue",
+        main = "Sixth Principal Component",
+        xlab = "Loading",
+        las = 1,             
+        cex.names = 0.5)
+fviz_contrib(pca, choice = "var", axes = 6)
+
+# Seventh Component
+par(mfrow = c(1,2))
+barplot(pca$rotation[, 7], 
+        horiz = TRUE,        
+        col = "darkblue",
+        main = "Seventh Principal Component",
+        xlab = "Loading",
+        las = 1,             
+        cex.names = 0.5)
+fviz_contrib(pca, choice = "var", axes = 7)
 
 ```
 
-The third component is clearly for attacking positions as Expected Goals and Shots on Target are the most important variables, goals and shots also have high contributions as well as offsides which are usually committed by attackers.
+This shows the most relevant variables.
 
-Now, we will use biplots to see the different relations between the components. As the number of variables was really high, we used different values of cos2 to filter the amount of variables to obtain a clear view of the graphs.
+For the first component, these are touches and carries which are really important as well as passes done, attempted and shot creating actions.These variables clearly highlights midfielders who make a lot of runs and are usually the players who most balls touch and are responsible for generating the attack in most teams.
+
+The second component gives a lot of importance to goalkeeper stats and focuses on Saves, Shots Against and Clean Sheets which are goalkeeper stats for which other players have no values. It also focuses on X90s and games played, these is also related to goalkeepers as most teams have one goalkeeper who plays most matches.
+
+The third component is clearly for attacking positions as Expected Goals and Shots on Target are the most important variables, goals and shots also have high contributions as well as offsides which are usually committed by attackers
+
+The fourth component are clearly the most famous players as they have the highest overall, as well as the highest value and wage, which are clearly the most relevant variables here.
+
+The fifth component correspond to the weight and height, so this component will focus more on the physical conditions of the players.
+
+The sixth component gives a lot of value to the age, both the oldest and youngest players.
+
+Finally, the seventh component has a lot of value for points per match as well as overall, so usually the best players who provide a lot for the team, especially points
+
+Now, we will use biplots to see the different relations between the components. As the number of variables was really high, we used different values of cos2 to filter the amount of variables to obtain a clear view of the graphs. Due to the high amount of components selected (7), and the fact that many of these components explained low variance in comparison to the first 3, we created a few biplots of the first 4 components with the first one which we think will be more than enough to see the relationship of data and obtain a good insight.
 
 ```{r}
 # Biplot for the 1st and 2nd principal components
@@ -635,20 +744,20 @@ fviz_pca_biplot(pca, axes = c(1, 2),
                 )  
 
 # Biplot for the 2nd and 3rd principal components
-fviz_pca_biplot(pca, axes = c(2, 3), 
+fviz_pca_biplot(pca, axes = c(1, 3), 
                 geom.ind = "point",
                 pointsize = 2,
                 label = "var",
-                select.var = list(cos2 = 0.4),
+                select.var = list(cos2 = 0.85),
                 col.var = "purple",
                 col.ind = "gray",
                 repel = T)
 
 # Biplot for the 1st and 3rd principal components
-fviz_pca_biplot(pca, axes = c(1, 3), 
+fviz_pca_biplot(pca, axes = c(1, 4), 
                 geom.ind = "point",
                 pointsize = 2,
-                select.var = list(cos2 = 0.8),
+                select.var = list(cos2 = 0.7),
                 label = "var",
                 col.var = "black",
                 col.ind = "gray",
@@ -657,22 +766,31 @@ fviz_pca_biplot(pca, axes = c(1, 3),
 
 ```
 
-The first graph is a really good visual example, as one one side we see many points together which are more than likely to be the goalkeepers.Then we have the rest of players joined together, by looking at the arrows it is really clear that these point in the direction of the most variance explained, the orthogonal variables are the goalkeeper variables which explain Dim2. The second graph again has some points separated to the left, which is the same direction of the arrows. The orthogonal vectors explain mostly forwards which is why we can see a weird shape of the graph, where on the far left are the goalkeepers and on the left down part the forwards. The third graph, is similar to the rest in that we have a bunch of points separated which are the goalkeepers, then we have the principal component 1 which clearly explain more variance with more points as it can easily be seen. This is also due to the fact that most teams have more midfielders in relation to other positions. Midfielders are usually a key part of the success of a team. The rest of points are on the direction of the orthogonal arrows, those points are the forwards.
+The first graph is a really good visual example, as one one side we see many points together which are more than likely to be the goalkeepers.Then we have the rest of players joined together, by looking at the arrows it is really clear that these point in the direction of the most variance explained, the orthogonal variables are the goalkeeper variables which explain Dim2.
+
+The second graph, is similar due to that we have a bunch of points separated which are the goalkeepers, then we have the principal component 1 which clearly explain more variance with more points as it can easily be seen. This is also due to the fact that most teams have more midfielders in relation to other positions. Midfielders are usually a key part of the success of a team. The rest of points are on the direction of the orthogonal arrows, those points are likely to be the forwards.
+
+The third grah, following the same pattern as before has some separate points which are more than likely to be the goalkeepers.Apart from that most of the variance is explained by the first component which are midfielders and therefore there are more points as most variance is being explained, while the fourth component took into account the wage, so points which are below are higher paid footballers.
+
+### Interpretation of PCA for individuals
+
+We will now focus on individuals, leagues and nations to see which players most strongly represent the variance on the first components. Basically, the players with the best statistics of the variables that are better explained by the first principal components.
 
 ```{r}
 names <- full_data[[1]]
-# The best
-names[order(pca$x[,1])][1:10]
+
+print("First Component")
+names[order(-pca$x[,1])][1:10]
+# The sign here for the pca is negative, as the goalkeeper stats are inversely proportional and if not we would be getting goalkeepers instead
+
+print("Second Component")
+names[order(pca$x[,2])][1:10]
+
+print("Third Component")
+names[order(pca$x[,3])][1:10]
 ```
 
-```{r}
-names[order(pca$x[,2])][1:6]
-names[order(pca$x[,2])][(length(names)-5):length(names)]
-```
-
-```{r}
-names[order(get_pca_ind(pca)$contrib[,1],decreasing=T)][1:10]
-```
+These individuals actually show our analysis of the PCA was correct as the players obtained in each of the components have the same position and characteristics we were mentioning in our interpretation above.
 
 We also want to get an insight on the best football teams, the nations with the best players as well as the team with the best players
 
@@ -709,7 +827,7 @@ comp_mean <- data.frame(z1 = pca$x[,1], comp = comp) %>%
 print(comp_mean)
 ```
 
-We see that the best league was the Ligue1, that the best players were from Russia and the best team was FC Barcelona
+We see that the league with the players who had statistics that best represented the variance was the Ligue1.Nation wise it was Russia and club wise it was FC Barcelona
 
 # **FACTOR ANALYSIS**
 
@@ -999,3 +1117,109 @@ ggplot(pca_data, aes(x = PC1, y = PC2, color = as.factor(Cluster))) +
 As we observe from the silhouette plot, the clusters seem to have a good silhouette score, so the number of clusters may not bee too far away from the optimal ones.
 
 When we plot the clustering against the positions (our initial hypothesis), we observe that the differentiation between them are not that clear. Goalkeepers have their own cluster, as expected, while we see a cluster for maybe more offensive players like midfielders and forwards, and another one for more defensive players, which could be defensive-midfielders or defenders. For the last cluster, it is hard to explain since the position does not seem to matter, therefore it could be classifying average players.
+
+## CLUSTERING WITH ALL THE VARIABLES
+
+In preprocessing we eliminated most of the variables to avoid high dimensionality and future problems. Now we want to test doing a PCA in all the variables in order to preprocess everything before doing the clustering. Before merging we still have to eliminate some variables which are in multiple datasets but not all of them, we will also have to rename most variables are the name is really similar in different datasets.
+
+```{r}
+# Defense Stats
+
+# The total amount of tackles is the sum of Def.3rd, Mid.3rd and Att.3rd which just refer to where those tackles were made, Tkl.Int is a sum of both tackles and interceptions therefore we can keep this columns and eliminate both interceptions and tackles. Blocks are a sum of Sh and Pass which refers to the different type of blocks. Tkl.1 is tackles in the first half, already included in the first variable. Tkl.1 measures the percentage of lost balls when Att is done, it divides Att and Lost. Many players dont have errors, and at the same time errors leading to goal are mostly done by defenders as an error in the defense side is more crucial, therefore we will eliminate it as well.
+
+defense_cols <- c("Def.3rd","Mid.3rd","Att.3rd","Tkl.1","Int","Sh", "Pass", "Att", "Lost","Err")
+
+
+defense_stats <- defense_stats %>% 
+  rename(TacklesDone = Tkl, SuccessfulTackles = TklW, TacklesANDIntercep = Tkl.Int,
+         Clearances = Clr, PercDribblersTackled = Tkl., TacklesOwnHalf = Def.3rd,TacklesMidHalf = Mid.3rd, TacklesOppositeHalf = Att.3rd, Interceptions = Int,DribblersTackled = Tkl.1,TotalTacklesAttempts = Att, PercSuccTackles = Tkl., MissedTackles = Lost, BlockedShots = Sh, BlockedPasses = Pass, Errors = Err)
+
+
+# GCA stats
+
+# SCA is an advanced metric that tracks the two offensive/attacking actions that directly lead to a shot on # goal, Following the same logic as a Shot-Creating Action, a Goal-Creating Action is an advanced metric that tracks the two offensive/attacking actions that leads to a goal. These follow the same criteria as  the above list. The difference is that one causes a goald, the other an scoring chance
+
+# SCA is a sum of PassLive, PassDead, TO, Sh Fld, Def, they are different stats that contribute to it, and  SCA90s can be inferred as SCA*90s returns SCA90s
+# GCA follows the same deduction as before
+
+gca_cols <- c("SCA90","PassLive", "PassDead", "TO", "Sh", "Fld", "Def", "GCA90", "PassLive.1", "PassDead.1", "TO.1", "Sh.1", "Fld.1", "Def.1")
+
+gca_stats <- gca_stats %>% select(-all_of(gca_cols))
+
+gca_stats <- gca_stats %>% 
+  rename(ShotCreatingActions = SCA,ShotCreatingActions90 = SCA90,PassLToSCA = PassLive, PassDToSCA = PassDead,DribblesToSCA = TO,
+         ShotsToSCA = Sh,FoulsDrawnToSCA = Fld,DefenseToSCA = Def,GoalCreatingActions = GCA, GoalCreatingActions90 = GCA90, PassLToGCA = PassLive.1, PassDToGCA = PassDead.1,
+         DribblesToGCA = TO.1, ShotsToGCA = Sh.1,FoulsDrawnToSCA = Fld.1, DefenseToGCA = Def.1)
+
+# Misc stats
+
+# X2CrdY is when the player is suspended by 2 yellow cards instead of one red card, this is included in the Red Card statistic. TklW and Int are already included in the defense dataset, Won. refers to the aerial duels won, and it divides won and lost, so we can remove them. Own goals are many times fortunate and dont affect the skill value of a player. PKwon and PKcon refer to the amount of penalties conceded and won, but not many players have a value here so we will remove it as it is irrelevant. Crs refers to crosses and will appear in a future dataset 
+
+misc_cols <- c("X2CrdY", "TklW", "Int", "Won", "Lost", "OG", "PKwon", "PKcon", "Crs")
+
+
+misc_stats <- misc_stats %>% select(-all_of(misc_cols))
+
+misc_stats <- misc_stats %>% 
+  rename(YellowCards = CrdY, RedCards = CrdR, FoulsCommited = Fls, FoulsDrawn = Fld, Offsides = Off, RecoveredBalls = Recov, PercAerialDuelsWon = Won.)
+
+# Passing Stats
+
+#Cmp. is the percentage of the completed passes in terms of the attempted ones, therefore we can remove them. Cmp.1, Att.1, Cmp..1,Cmp.2,Att.2, Cmp..2, Cmp.3,Att.3,Cmp..3 are all relative to the distance of the passes, which is not of much interest as of right now and both TotDist and PrgDist contain a lot of information about the distance of passes. 1/3, PPA, CrsPa, PrgP are also covered as they all refer to progressive passes. A.xAG is assists minus the xAG, therefore we can remove it.
+
+passing_cols <- c("Cmp.","Cmp.1", "Att.1", "Cmp..1","Cmp.2","Att.2", "Cmp..2", "Cmp.3","Att.3","Cmp..3","X1.3", "PPA", "CrsPA", "PrgP","A.xAG")
+
+passing_stats <- passing_stats %>% select(-all_of(passing_cols))
+
+passing_stats <- passing_stats %>% 
+  rename(CompletedPasses = Cmp, AttemptedPasses = Att, PassingDistance = TotDist, ForwardPassingDistance = PrgDist, Assists = Ast, ExpectedAssistsGoal = xAG, ExpectedAssists = xA,  KeyPasses = KP)
+
+# Posession Stats
+
+
+# Touches is a sum of Def.Pen, Def.3rd, Mid.3rd, Att.3rd, Att.Pen, Live so we can remove them. Succ. is the division of Att and Succ which refers to the number of times the attacker has dribbled the defender divided by the total attemps. Tkld, Tkld. are two variables directly related to the previous so we can also take them out. X1.3, CPA, Mis are not really valuable. TotDist and PrgDist will have different names to differentiate from the previous dataset that used the same variables. Rec, PrgR refer to the times the player received a good pass where in most of the cases if a pass is missed it is usually the passers fault rather than the receiver.
+
+
+posession_cols <- c("Def.Pen", "Def.3rd", "Mid.3rd", "Att.3rd", "Att.Pen", "Live", "Att", "Succ", "Tkld", "Tkld.","X1.3", "CPA", "Mis", "Rec", "PrgR", "PrgC")
+
+possession_stats <- possession_stats %>% select(-all_of(posession_cols))
+
+possession_stats <- possession_stats %>% 
+  rename(DistanceRanBall = TotDist, ForwardDistanceRanBall = PrgDist, PercSuccessfulDribbles = Succ., Dispossessed = Dis)
+
+# Shooting Stats
+
+# With goals, shots and shots on target we can infer SoT., Sh.90, SoT.90, G.Sh, G.SoT. As not many players shoot penalties or free kicks we will not take into account this, FK, PK and PKatt will be removed. npxG/Sh can be calculated with both variables, as well as G.xG and np.G.xG can also be calculated with npxG and xG
+
+shooting_cols <- c("SoT.", "Sh.90", "SoT.90", "G.Sh", "G.SoT","FK", "PK","PKatt", "npxG.Sh", "G.xG", "np.G.xG")
+
+shooting_stats <- shooting_stats %>% select(-all_of(shooting_cols))
+
+shooting_stats <- shooting_stats %>% 
+  rename(Goals = Gls, Shots = Sh, ShotsOnTarget = SoT, ShotDistance = Dist, ExpectedGoals = xG, NonPenaltyExpectedGoals = npxG)
+
+# Keepers one
+
+# The statistics MP, Starts, Min will be in another dataset so we will remove them. Save. is calculated by SoTA-GA/SoTa and CS. which refers to clean sheets can also be removed. Everything about free kicks and penalties can be removed as it is easy to score from a penalty and harder from a free kick and it usually depends on the quality of the attacker, many times the keeper cannot do much.We will remove PKatt, PKA, PKsv,PKm,Save..1. GA90 can also be inffered with Goals Against and 90s
+
+keepers_cols <- c("MP", "Starts", "Min", "Save.", "CS.", "PKatt", "PKA", "PKsv","PKm","Save..1", "GA90")
+
+keepers_one <- keepers_one %>% select(-all_of(keepers_cols))
+
+keepers_one <- keepers_one %>% 
+  rename(GoalsAllowed = GA, ShotsOnTargetAgainst = SoTA, Won = W, Drawn = D, Lost = L, CleanSheets = CS)
+
+
+
+# Playing Time
+
+# Min can be calcualted by 90 * X90S.Mn.Mp can be calculated as Min/Mp, Mn. can also be calculated. Mn.Start will be Min/Starts, Compl can be seen as it is not really important. The same for all sub variables as with minutes we can already kind of see the amount of time played. We will remove Subs, Mn.Sub, unSub. X... is substraction of onG and onGA so we can remove it, and the same for the 90s, X...90. Same for On.Off.1 and On.Off. Minutes is a character therefore we will have to change to numeric
+
+playing_cols <- c("Mn.MP","Min.","Min", "Mn.Start", "Compl", "Subs", "Mn.Sub", "unSub","X...", "X...90", "On.Off", "On.Off.1", "xG...", "xG...90")
+
+playingtime <- playingtime %>% select(-all_of(playing_cols))
+
+playingtime <- playingtime %>% 
+  rename(MatchesPlayed = MP, PointsPerMatch = PPM, GoalsByTeam = onG, GoalsAgainstTeam = onGA, ExepectedGoalsByTeam = onxG, ExpectedGoalsAgainstTeam = onxGA )
+
+```
