@@ -4,7 +4,7 @@ output: html_document
 date: "2024-11-09"
 ---
 
-**SET UP**
+# **SET UP**
 
 ```{r}
 rm(list = ls())
@@ -26,6 +26,8 @@ library("tidyr")
 library("patchwork")
 library("ellipse")
 library("RColorBrewer")
+library("cluster")
+library("mclust")
 ```
 
 We have different datasets which contain different statistics from different players which we will need to combine to obtain a richer and more useful dataset.
@@ -47,7 +49,7 @@ playingtime <- read.csv("Big5-playingtimeStats22-23.csv", sep = ",")
 
 ```
 
-**DATA PREPROCESSING**
+# **DATA PREPROCESSING**
 
 Merging all datasets in one when each of them has a lot of datasets will potentially cause many problems in the long run, we won't handle duplicates or NA values just yet and fully focus on reducing the amount of dimensions each dataset has.
 
@@ -549,7 +551,7 @@ corrplot(correlation_matrix,
 
 This shows the correlation for the different variables, some of these have high correlation which could affect the PCA. There are also some variables with no or very low correlation which is why the PCA could offer more information about the variables.
 
-**PRINCIPAL COMPONENT ANALYSIS**
+# **PRINCIPAL COMPONENT ANALYSIS**
 
 ```{r}
 #Scale is set to False as the data is already scaled and this could lead to errors
@@ -560,7 +562,7 @@ get_eigenvalue(pca)
 
 ```
 
-***Choosing the number of components***
+# ***Choosing the number of components***
 
 ```{r}
 # Using factoextra package to see the variances explained by each component
@@ -587,7 +589,7 @@ This graph uses cos\^2, which refers to the quality of representation of the dif
 
 We have chosen to maintain 3 components.This is based on our previous graphs. In the previous scree plot,based on the elbow method we see a bigger drop from the second to the third component, apart from that the variance explained by the second component is fairly similar to the one explained by the third component. As the increase in variance explained was of 10 percent, yielding up to around 70% data which is very good and this is why we decided to maintain it up until the 3rd component. Moreover, on our most recent graph,it is easily seen that from Dim 15 to 57 there is basically no representation of the variables.In the first 3 dim, we can see different colors in most variables, this shows that they are well explained and represented. Although it is true that we could chose some more dimensions to explain better some missing variables, we want to focus on maintaining the highest amount of possible components while reducing the dimensionality as much as possible.
 
-**Interpretation of PCA components**
+# **Interpretation of PCA components**
 
 ```{r}
 # First Component
@@ -709,9 +711,9 @@ print(comp_mean)
 
 We see that the best league was the Ligue1, that the best players were from Russia and the best team was FC Barcelona
 
-**FACTOR ANALYSIS**
+# **FACTOR ANALYSIS**
 
-**Motivation**
+# **Motivation**
 
 Factor analysis can be very useful in this case. As we know, the factor analysis searches for latent traits in the data, and so can it do in this dataset. Hidden features could range from offensive skill and defensive capability to physical fitness. Therefore it could help us interpret the performance on players based on broader terms rather than just individual statistics.
 
@@ -719,13 +721,13 @@ Combining all of this, factor analysis could be especially valuable if we decide
 
 To finish the justification, it can also help us reduce the dimensionality of the data for training future algorithms as well as minimizing redundancy for highly correlated variables.
 
-**Number of factors**
+# **Number of factors**
 
-Before performing factor analysis, one of the key metrics to decide is the number of factors we want to extract from the data. For this we will use parallel analysis, a method on which new random data is generated from our original data, and the eigenvalues of the actual and the new random data are compared.
+Before performing factor analysis, one of the key metrics to decide, is the number of factors we want to extract from the data. For this we will use parallel analysis, a method on which new random data is generated from our original data, and the eigenvalues of the actual and the new random data are compared.
 
-As we know in factor analysis we have the covariance matrix:$$ \Sigma = LL^T + \Psi $$ This matrix can be decomposed as:$$ \Sigma = L A L^T + \Psi$$where $$L$$ is the factors loading matrix and $$A$$ the matrix of eigenvalues (variance explained by each factor).
+As we know in factor analysis we have the covariance matrix:$$ \Sigma = LL^T + \Psi $$ In reality as factors might be correlated, this matrix can be decomposed as:$$ \Sigma = L Cov(F) L^T + \Psi$$where $L$ is the factor loading matrix , $Cov(F)$ the covariance matrix of factors (with eigenvalues on the diagonal) and $\Psi$ represents the covariance matrix of the unobserved stochastic error.
 
-To assess whether or not the factor is significant, what we do is compare the eigenvalues with the mean eigenvalue from the random data. Then if at the corresponding position$$\lambda < \mathbb{E}[\lambda_{\text{random}}] $$we can say that this factor does not explain more variability than what would be expected of random noise, so we will not use this factor.
+To assess whether or not the factor is significant, what we do is compare the eigenvalues (variance explained by each factor) with the mean eigenvalue from the random data. Then if at the corresponding position $\lambda < \mathbb{E}[\lambda_{\text{random}}]$ we can say that this factor does not explain more variability than what would be expected of random noise, so we will not use this factor.
 
 ```{r}
 # Parallel analysis plot
@@ -736,7 +738,7 @@ As we observe the real eigenvalues stay above the ones of random data, for facto
 
 Before doing the factor analysis there are two choices have to be made. For rotation we chose "oblimin" since we know from before that many variables are really correlated, therefore the rotation matrix does not force the factors to be orthogonal. For score we chose "regression" since it gives the most accurate and unbiased estimations of factors when they may be correlated.
 
-**Training**
+# **Training**
 
 ```{r}
 # Performing factor analysis and extracting 8 factors
@@ -744,7 +746,7 @@ players.f <- fa(scaled_data, 8, rotate="oblimin", scores="regression")
 print(players.f, cut=0, digits=2)
 ```
 
-**Factor explanation**
+# **Factor explanation**
 
 As we can see from the output the total variance explained by all factors is 85%, but we can also observe that the variance explained by each factor alone decreases until it goes flat in about a 5% for the last three.
 
@@ -957,3 +959,43 @@ As we can see with the output, the hidden factors are clear. For example for fac
 Finally, we observe that although this analysis does pretty well, it is not perfect, for example in factor 1 (midfielder focused) the highest scoring player is Lewis Dunk an average Premier League midfielder, while Rodri the best player at this places second just behind him.
 
 As a conclusion, we have pretty reasonably performed factor analysis which has given us meaningful hidden factors that could be used from scouting to improve a players performance, or many other possibilities.
+
+# CLUSTERING
+
+# Motivation
+
+As we have discussed before, one of the main goals of the project is to classify players into different groups. One very easy example is well-performing players against bad-performing players, but we could gain even more insights. Due to this clustering is a key-part for this player analysis.
+
+# K-means
+
+# Initial Clustering
+
+Before we move on to fancier methods for k-means, such as kernel-based and choosing thoroughly the number of clusters, we will do a basic initial k-means. The number of cluster will be 4 since at first we think that the player's position could be a very good way to initially describe them.
+
+```{r}
+k <- 4
+set.seed(1)
+
+initial_kmeans <- eclust(scaled_data, "kmeans", stand=TRUE, k=k)
+fviz_silhouette(initial_kmeans)
+
+# Perform PCA on scaled data
+pca_result <- prcomp(scaled_data, center = TRUE, scale. = TRUE)
+
+# Extract PCA scores (first two principal components)
+pca_data <- as.data.frame(pca_result$x) %>%
+  mutate(Cluster = initial_kmeans$cluster,
+         Position = full_data$Pos)  # Assuming 'full_data' has 'Pos' column
+
+# Plot PCA with ggplot2, using color for 'Position' and shape for 'Cluster'
+ggplot(pca_data, aes(x = PC1, y = PC2, color = as.factor(Cluster))) + 
+  geom_point(aes(shape = Position, alpha=0.8))+
+  scale_shape_manual(values = 1:k) +
+  labs(title = "PCA of Clusters with Position Differentiation",
+       x = "Principal Component 1", y = "Principal Component 2") +
+  theme_minimal()
+```
+
+As we observe from the silhouette plot, the clusters seem to have a good silhouette score, so the number of clusters may not bee too far away from the optimal ones.
+
+When we plot the clustering against the positions (our initial hypothesis), we observe that the differentiation between them are not that clear. Goalkeepers have their own cluster, as expected, while we see a cluster for maybe more offensive players like midfielders and forwards, and another one for more defensive players, which could be defensive-midfielders or defenders. For the last cluster, it is hard to explain since the position does not seem to matter, therefore it could be classifying average players.
