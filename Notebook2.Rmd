@@ -552,9 +552,9 @@ The main objective of PCA is to visualize a high dimensional space in lower dime
 
 The first principal component will show the direction of the variance. This component will be given by these formula:
 
-$$  Z_1 = X \mathbf{a}\_1 $$
+$$  Z_1 = X \mathbf{a}_1 $$
 
-Where here X represents the data matrix, Z1 the first components and a_1 a vector of loadings that shows the direction of the original feature map.
+Where here $X$ represents the data matrix, $Z_1$ the first components and $\mathbf{a}_1$ a vector of loadings that shows the direction of the original feature map.
 
 As we want to obtain the maximum information possible, we will maximize the variance of this component. The variance is given by these formula:
 
@@ -562,21 +562,21 @@ $$
 s_{z_1}^2 = \mathbf{a}_1^T S \mathbf{a}_1
 $$
 
-Wjere S represents the covariance matrix of the data and a1 will be a unit vector so it is not affected by the scaling of variables. Scaling is important in PCA as we want to center every variables, because if not elements with a higher scale will have a larger variance affecting our analysis.
+Where $S$ represents the covariance matrix of the data and $\mathbf{a}_1$ a unit vector so it is not affected by the scaling of variables. Scaling is important in PCA as we want to center every variable, because if not elements with a higher scale will have a larger variance affecting our analysis.
 
-As S is a covariance matrix we can decompose it by
+As $S$ is a covariance matrix we can decompose it by:
 
 $$
 S \mathbf{v} = \lambda \mathbf{v}
 $$
 
-With this formula and the previous taking into account that a1 is a unit vector, we will obtain that the maximum variance for the first component will be its eigenvalue. The direction will be given by a1, its eigenvector. This exact procedure will be the same for the rest of components. As two uncorrelated variables have covariance 0, the next component will be orthogonal. The matrix with the principal components score will be given by:
+With this formula and the previous taking into account that $\mathbf{a}_1$ is a unit vector, we will obtain that the maximum variance for the first component will be its eigenvalue. The direction will be given by $\mathbf{a}_1$ , its eigenvector. This exact procedure will be the same for the rest of components. As two uncorrelated variables have covariance 0, the next component will be orthogonal. The matrix with the principal components score will be given by:
 
 $$
 Z = X A_r
 $$
 
-Where Z is the matrix of the principal components, X the data matrix and Ar the principal component loadings.
+Where $Z$ is the matrix of the principal components, $X$ the data matrix and $A_r$ the principal component loadings.
 
 PCA will be essential in our project as our current dataset has around 60 dimensions, so reducing these number of dimensions to have a more visual and clearer representation of data could be crucial.
 
@@ -591,9 +591,7 @@ get_eigenvalue(pca)
 
 ## **Choosing the number of components**
 
-To select the number of clusters we will use the Kaiser Criterion.
-
-This criterion states that only the principal components with eigenvalues higher than 1 should appear in the analysis. It is of value greater than 1 as since each eigenvalue represents the variance contributed, a value lower than 1 would mean it explains less than the variables, so it is not useful.
+To select the number of clusters we will build up from the Kaiser Criterion. This criterion states that only the principal components with eigenvalues higher than 1 should appear in the analysis. It is of value greater than 1 as since each eigenvalue represents the variance contributed, a value lower than 1 would mean it explains less than the variables, so it is not useful.
 
 However, this method does not deal well with noise, therefore we will use parallel analysis which will solve this issue. What parallel analysis does is that it compares the eigenvalues of the actual data with the ones generated with random data following the structure of the original data.
 
@@ -1101,12 +1099,12 @@ fviz_silhouette(initial_kmeans)
 pca_result <- prcomp(scaled_data, center = TRUE, scale. = TRUE)
 
 # Extract PCA scores (first two principal components)
-pca_data <- as.data.frame(pca_result$x) %>%
+pca_cluster_data <- as.data.frame(pca_result$x) %>%
   mutate(Cluster = initial_kmeans$cluster,
          Position = full_data$Pos)  # Assuming 'full_data' has 'Pos' column
 
 # Plot PCA with ggplot2, using color for 'Position' and shape for 'Cluster'
-ggplot(pca_data, aes(x = PC1, y = PC2, color = as.factor(Cluster))) + 
+ggplot(pca_cluster_data, aes(x = PC1, y = PC2, color = as.factor(Cluster))) + 
   geom_point(aes(shape = Position, alpha=0.8))+
   scale_shape_manual(values = 1:k) +
   labs(title = "PCA of Clusters with Position Differentiation",
@@ -1117,6 +1115,128 @@ ggplot(pca_data, aes(x = PC1, y = PC2, color = as.factor(Cluster))) +
 As we observe from the silhouette plot, the clusters seem to have a good silhouette score, so the number of clusters may not bee too far away from the optimal ones.
 
 When we plot the clustering against the positions (our initial hypothesis), we observe that the differentiation between them are not that clear. Goalkeepers have their own cluster, as expected, while we see a cluster for maybe more offensive players like midfielders and forwards, and another one for more defensive players, which could be defensive-midfielders or defenders. For the last cluster, it is hard to explain since the position does not seem to matter, therefore it could be classifying average players.
+
+# Deciding number of clusters
+
+```{r}
+# Filtering out goalkeepers
+full_data_no_gk <- full_data %>% filter(Pos != "GK")
+numeric_data_no_gk <- select_if(full_data_no_gk, is.numeric)
+numeric_data_no_gk <- numeric_data_no_gk[, !colnames(numeric_data_no_gk) %in% c("GoalsAllowed", "ShotsOnTargetAgainst", "Saves", "Won", "Drawn", "Lost", "CleanSheets")] 
+scaled_data_no_gk <- scale(sqrt(numeric_data_no_gk))
+
+pca_result <- prcomp(scaled_data)
+pca_result_no_gk <- prcomp(scaled_data_no_gk)
+
+# 2. Extract the scores for the first 7 principal components
+pca_data <- as.data.frame(pca_result$x[, 1:7])
+pca_data_no_gk <- as.data.frame(pca_result_no_gk$x[, 1:7])
+```
+
+```{r}
+library(cluster)
+library(ggplot2)
+
+# Define range of k values
+k_values <- 2:7
+
+cluster_comparison <- function(data) {
+  # Initialize vectors to store WSS, Silhouette Scores, and Gap Statistic
+  wss_values <- numeric(length(k_values))
+  silhouette_values <- numeric(length(k_values))
+  gap_stat_values <- numeric(length(k_values))
+
+  # Calculate the Gap Statistic
+  gap_stat <- clusGap(data, FUN = kmeans, K.max = max(k_values), B = 50)  # B = number of bootstrap samples
+  
+  for (i in 1:length(k_values)) {
+    k <- k_values[i]
+
+    # Fit the k-means model
+    kmeans_result <- kmeans(data, centers = k, nstart = 25)
+
+    # Store WSS value (within-cluster sum of squares)
+    wss_values[i] <- kmeans_result$tot.withinss
+
+    # Compute the silhouette score
+    cluster_assignments <- kmeans_result$cluster
+    dist_matrix <- dist(data)  # Euclidean distance matrix
+    
+    silhouette_score <- silhouette(cluster_assignments, dist_matrix)
+    silhouette_values[i] <- mean(silhouette_score[, 3])  # Average silhouette score
+
+    # Store the Gap Statistic value for k clusters
+    gap_stat_values[i] <- gap_stat$Tab[i, "gap"]
+  }
+
+  # Plot WSS (Elbow Method)
+  plot(k_values, wss_values, type = "b", pch = 19, frame = FALSE,
+       xlab = "Number of Clusters K",
+       ylab = "Within-Cluster Sum of Squares (WSS)",
+       main = "Elbow Method for Optimal K")
+
+  # Plot Silhouette Score
+  plot(k_values, silhouette_values, type = "b", pch = 19, frame = FALSE,
+       xlab = "Number of Clusters K",
+       ylab = "Average Silhouette Score",
+       main = "Silhouette Method for Optimal K")
+
+  # Plot Gap Statistic
+  plot(k_values, gap_stat_values, type = "b", pch = 19, frame = FALSE,
+       xlab = "Number of Clusters K",
+       ylab = "Gap Statistic",
+       main = "Gap Statistic for Optimal K")
+}
+
+# Run the function on your datasets
+#cluster_comparison(scaled_data)
+#cluster_comparison(scaled_data_no_gk)
+#cluster_comparison(pca_data)
+#cluster_comparison(pca_data_no_gk)
+
+
+```
+
+# Interpretation of clusters
+
+```{r}
+final_kmeans <- kmeans(pca_data, centers = 5, nstart = 1000)
+
+groups <- final_kmeans$cluster
+barplot(table(groups), col="blue")
+centers <- final_kmeans$centers
+
+barplot(centers[1,], las=2, col="darkblue")
+barplot(centers[2,], las=2, col="darkblue")
+barplot(centers[3,], las=2, col="darkblue")
+
+# Extract PCA scores (first two principal components)
+pca_cluster_data <- pca_data %>%
+  mutate(Cluster = final_kmeans$cluster,
+         Position = full_data$Pos,
+         GoalsAssists = full_data$Goals + full_data$Assists,
+         CompletedPasses = full_data$CompletedPasses,
+         Tackles = full_data$TacklesANDIntercep)  # Assuming 'full_data' has 'Pos' column
+
+# Plot PCA with ggplot2, using color for 'Position' and shape for 'Cluster'
+ggplot(pca_cluster_data, aes(x = PC1, y = PC2, color = as.factor(Cluster), size = 0.5*GoalsAssists)) + 
+  geom_point(aes(shape = Position, alpha=0.8))+
+  labs(title = "PCA of Clusters with Position Differentiation",
+       x = "Principal Component 1", y = "Principal Component 2") +
+  theme_minimal()
+
+ggplot(pca_cluster_data, aes(x = PC1, y = PC2, color = as.factor(Cluster), size = 0.5*CompletedPasses)) + 
+  geom_point(aes(shape = Position, alpha=0.8))+
+  labs(title = "PCA of Clusters with Position Differentiation",
+       x = "Principal Component 1", y = "Principal Component 2") +
+  theme_minimal()
+
+ggplot(pca_cluster_data, aes(x = PC1, y = PC2, color = as.factor(Cluster), size = 0.5*Tackles)) + 
+  geom_point(aes(shape = Position, alpha=0.8))+
+  labs(title = "PCA of Clusters with Position Differentiation",
+       x = "Principal Component 1", y = "Principal Component 2") +
+  theme_minimal()
+```
 
 ## CLUSTERING WITH ALL THE VARIABLES
 
