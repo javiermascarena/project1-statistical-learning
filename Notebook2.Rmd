@@ -1152,7 +1152,7 @@ library(cluster)
 library(ggplot2)
 
 # Define range of k values
-k_values <- 2:7
+k_values <- 2:10
 
 cluster_comparison <- function(data) {
   # Initialize vectors to store WSS, Silhouette Scores, and Gap Statistic
@@ -1214,7 +1214,13 @@ cluster_comparison(pca_data_no_gk)
 # Interpretation of clusters
 
 ```{r}
-final_kmeans <- kmeans(pca_data, centers = 4, nstart = 1000)
+#final_kmeans <- kmeans(scaled_data, centers = 5, nstart = 1000)
+final_kmeans <- eclust(scaled_data, "kmeans", stand=TRUE, k=5)
+fviz_silhouette(final_kmeans)
+
+# Perform PCA on scaled data
+pca_result <- prcomp(scaled_data, center = TRUE, scale. = TRUE)
+
 
 groups <- final_kmeans$cluster
 barplot(table(groups), col="blue")
@@ -1223,6 +1229,8 @@ centers <- final_kmeans$centers
 barplot(centers[1,], las=2, col="darkblue")
 barplot(centers[2,], las=2, col="darkblue")
 barplot(centers[3,], las=2, col="darkblue")
+barplot(centers[4,], las=2, col="darkblue")
+barplot(centers[5,], las=2, col="darkblue")
 
 # Extract PCA scores (first two principal components)
 pca_cluster_data <- pca_data %>%
@@ -1282,28 +1290,87 @@ position_percentages <- position_counts %>%
 
 # View the result
 position_percentages
+
+ggplot(position_percentages, aes(x = as.factor(Cluster), y = percentage, fill = Position)) +
+  geom_bar(stat = "identity", position = "stack", color = "black") +
+  labs(title = "Position Percentages in Each Cluster",
+       x = "Cluster",
+       y = "Percentage") +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) + # Optional: Format y-axis as percentage
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  guides(fill = guide_legend(title = "Position"))
+
+```
+
+plot_ly(
+
+data = pca_data_3d,
+
+x = \~PC1, \# Replace 'PC1', 'PC2', 'PC3' with actual column names if different
+
+y = \~PC2,
+
+z = \~PC3,
+
+color = \~Cluster,
+
+shape = \~as.factor(Position), \# Color by cluster
+
+text = \~Names, \# Add names as hover text
+
+type = "scatter3d",
+
+mode = "markers", \# Only show markers, not text
+
+marker = list(size = 4, opacity = 0.8),
+
+hoverinfo = "text" \# Show text only on hover
+
+)
+
+```{r}
+library(plotly)
+
+# Run PAM clustering
+final_pam <- eclust(scaled_data, "pam", stand = TRUE, k = 5, graph = FALSE)
+
+# Extract cluster assignments
+cluster_assignments <- factor(final_pam$cluster)
+
+pam_plot <- fviz_cluster(final_pam, data = scaled_data, geom = c("point"), pointsize=1) +
+  theme_minimal() +
+  geom_text(aes(label = names, color = factor(final_pam$cluster), alpha=0.8), hjust = 0, vjust = 0, size = 2, check_overlap = TRUE) +
+  scale_fill_brewer(palette = "Paired") +
+  scale_color_brewer(palette = "Paired") # Ensure matching color palette for text
+
+ggsave(filename = "pam_plot.png", plot = pam_plot, width = 10, height = 6, dpi = 300)
+
+
+# Ensure PCA data is in a data frame format and add cluster and player names
+pca_data_3d <- as.data.frame(pca_data) %>%
+  mutate(Cluster = cluster_assignments, Names = full_data$Player, Position=full_data$Pos)
+
+plot_ly(
+  data = pca_data_3d,
+  x = ~PC1,
+  y = ~PC2,
+  z = ~PC3,
+  color = ~Cluster, 
+  text = ~paste("Name:", Names, "<br>Position:", Position),
+  type = "scatter3d",
+  mode = "markers",
+  marker = list(size = 4, opacity = 0.8),
+  hoverinfo = "text"
+)
+
+
 ```
 
 ```{r}
-library(dbscan)
-kNNdistplot(scaled_data, k = 3) # Choose k based on MinPts
-abline(h = 4.7, col = "red", lty = 2) # Mark your current eps
-```
-
-```{r}
-library("fpc")
-
-dbscan_cluster <- dbscan::dbscan(scaled_data, eps = 5, minPts = 3)
-
-cluster_2_indices <- which(dbscan_cluster$cluster == 2)
-pca_data_no_gk[cluster_2_indices, ]
-                                 
-
-fviz_cluster(object = dbscan_cluster, data = scaled_data, stand = FALSE,
-             geom = "point", ellipse = FALSE, show.clust.cent = FALSE,
-             pallete = "jco") +
-  theme_bw() +
-  theme(legend.position = "bottom")
+fviz_nbclust(scaled_data, pam, method = 'silhouette', k.max = 10)
+fviz_nbclust(scaled_data, pam, method = 'gap_stat', k.max = 10, nboot = 10)
+adjustedRandIndex(final_kmeans$cluster, final_pam$clustering)
 ```
 
 ## CLUSTERING WITH ALL THE VARIABLES
