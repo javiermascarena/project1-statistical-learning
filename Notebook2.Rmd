@@ -4,11 +4,15 @@ output: html_document
 date: "2024-11-09"
 ---
 
+# BRIEF INTRODUCTION
+
+We have chosen some datasets which represent statistics from all players in the Top 5 European Leagues which measure their performance in their domestic league in the Season 2022-2023.In this project we will analyse this datasets to obtain insights and different information about these football players.
+
 # **SET UP**
 
 ```{r}
 rm(list = ls())
-
+# AÑADIR CODIGO PARA QUE MIRE SI EL PROFESOR TIENE EL PAQUETE INSTALADO O NO
 # Importing libraries
 library("dplyr")
 library("skimr")
@@ -28,6 +32,8 @@ library("ellipse")
 library("RColorBrewer")
 library("cluster")
 library("mclust")
+library("igraph")
+library("pheatmap")
 ```
 
 We have different datasets which contain different statistics from different players which we will need to combine to obtain a richer and more useful dataset.
@@ -44,21 +50,21 @@ shooting_stats <- read.csv("Big5-shootingStats22-23.csv", sep = ",")
 # Datasets for goalkeepers
 keepers_one <- read.csv("Big5-keepersStats22-23.csv", sep = ",")
 
-# Dataset for all players combined
+# Dataset for all combined players
 playingtime <- read.csv("Big5-playingtimeStats22-23.csv", sep = ",")
 
 ```
 
 # **DATA PREPROCESSING**
 
-Merging all datasets in one when each of them has a lot of datasets will potentially cause many problems in the long run, we won't handle duplicates or NA values just yet and fully focus on reducing the amount of dimensions each dataset has.
+We want to group all these datasets in one single one, but doing this could potentially affect our analysis as we will have a really high number of dimensions, we won't handle duplicates or NA values just yet and we will fully focus on reducing the amount of dimensions each dataset has.
 
-Therefore, we will look at each dataset independently handling the unimportant columns or columns that can be inferred from other datasets to reduce dimensionality. We will also rename the variables remaining for a better understanding.
+Therefore, we will look at each dataset independently handling the unimportant columns or columns that can be inferred from other datasets, or columns that are linear combinations of other columns, all of these possibilites will help us reduce dimensionality. We will also rename the variables for a better understanding and clearer explanation when visualizing the data.
 
 ```{r}
 # Defense Stats
 
-# The total amount of tackles is the sum of Def.3rd, Mid.3rd and Att.3rd which just refer to where those tackles were made, Tkl.Int is a sum of both tackles and interceptions therefore we can keep this columns and eliminate both interceptions and tackles. Blocks are a sum of Sh and Pass which refers to the different type of blocks. Tkl.1 is tackles in the first half, already included in the first variable. Tkl.1 measures the percentage of lost balls when Att is done, it divides Att and Lost. Many players dont have errors, and at the same time errors leading to goal are mostly done by defenders as an error in the defense side is more crucial, therefore we will eliminate it as well.
+#  The total amount of tackles (Tkl) is the sum of Def.3rd, Mid.3rd and Att.3rd which just refer to where in the pitch those tackles were made. Tkl.Int is a sum of both tackles and interceptions therefore we can keep this columns and eliminate both interceptions and tackles. Blocks are a sum of Sh and Pass which refers to the different type of blocks. Tkl.1 is tackles in the first half, already included in the first variable. Tkl.1 measures the percentage of lost balls when Att is done, it divides Att and Lost. Many players dont have errors, and at the same time errors leading to goal are mostly done by defenders as an error in the defense side is more crucial, therefore we will eliminate it as well.
 
 defense_cols <- c("Def.3rd","Mid.3rd","Att.3rd","Tkl.1","Int","Sh", "Pass", "Att", "Lost","Err")
 
@@ -1373,108 +1379,190 @@ fviz_nbclust(scaled_data, pam, method = 'gap_stat', k.max = 10, nboot = 10)
 adjustedRandIndex(final_kmeans$cluster, final_pam$clustering)
 ```
 
-## CLUSTERING WITH ALL THE VARIABLES
+## Hierarchical Clustering
 
-In preprocessing we eliminated most of the variables to avoid high dimensionality and future problems. Now we want to test doing a PCA in all the variables in order to preprocess everything before doing the clustering. Before merging we still have to eliminate some variables which are in multiple datasets but not all of them, we will also have to rename most variables are the name is really similar in different datasets.
+Hierarchical Clustering organizes data into a tree type structure. There are different types for it. Following the same explanation as before on PCA, these variables have to be scaled as it is based on distance methods, and therefore different scales could be really costly for the data.
+
+These are: Agglomerative and Divisive Hierarchical Clustering.
+
+On the one hand, agglomerative initally considers each point as a separate cluster, it then computes the distance matrix for the data and joins the two closest points. It repeats this process taking into account the clusters until one cluster with all the points contained is created.
+
+On the other hand, divisive clustering is the opposite of the previous. It considers all data points together on one single cluster, it then divides into smaller clusters, until all points form a singular cluster. It will do this obtaining the two most dissimilar elements in a cluster, and separating them. Computer wise this is a bit more complex as it is harder to find the optimal splits rather than the two closes points.
+
+First of all we will obtain the distances as well as the linkage. As there is no single formula for which distance or linkage method is better, we will plot the graphs using different combinations of a few of them explained below and analyze the results to see which method is better.
+
+For computing the distance matrix there are many different methods such as Euclidean, given by this formula:
+
+$$ d(i, j) = \sqrt{\sum_{k=1}^{n} \left( x_{ik} - x_{jk} \right)^2} $$
+
+We also have Canberra distance given by:
+
+$$
+d(i, j) = \sum_{k=1}^{n} \frac{\left| x_{ik} - x_{jk} \right|}{\left| x_{ik} \right| + \left| x_{jk} \right|}
+$$
+
+There are many more methods such as Manhattan or Minkowsky, but for this project we just want to try a few methods and see which one is better.
+
+There are 4 main linkage methods, which we will test to see which one produces the most interesting result. Linkage methods are used to measure the distance between two clusters taking into account the points inside the clusters
+
+We have simple linkage, which measures the shortest distance:
+
+$$
+d(C_1, C_2) = \min \left\{ d(x, y) \mid x \in C_1, y \in C_2 \right\}
+$$
+
+We have average linkage, measures average distance:
+
+$$
+d(C_1, C_2) = \frac{1}{|C_1| |C_2|} \sum_{x \in C_1, y \in C_2} d(x, y)
+$$
+
+We also have complete linkage, which measures the furthest distance
+
+$$
+d(C_1, C_2) = \max \left\{ d(x, y) \mid x \in C_1, y \in C_2 \right\}
+$$
+
+And finally we have Ward\`s method which focuses on minimizing variance
+
+$$
+d(C_1, C_2) = \sqrt{\frac{|C_1| |C_2|}{|C_1| + |C_2|} \left( \mu_{C_1} - \mu_{C_2} \right)^T \left( \mu_{C_1} - \mu_{C_2} \right)}
+$$
+
+These is how we computed the different distances and plotted the different graphs
 
 ```{r}
-# Defense Stats
-
-# The total amount of tackles is the sum of Def.3rd, Mid.3rd and Att.3rd which just refer to where those tackles were made, Tkl.Int is a sum of both tackles and interceptions therefore we can keep this columns and eliminate both interceptions and tackles. Blocks are a sum of Sh and Pass which refers to the different type of blocks. Tkl.1 is tackles in the first half, already included in the first variable. Tkl.1 measures the percentage of lost balls when Att is done, it divides Att and Lost. Many players dont have errors, and at the same time errors leading to goal are mostly done by defenders as an error in the defense side is more crucial, therefore we will eliminate it as well.
-
-defense_cols <- c("Def.3rd","Mid.3rd","Att.3rd","Tkl.1","Int","Sh", "Pass", "Att", "Lost","Err")
-
-
-defense_stats <- defense_stats %>% 
-  rename(TacklesDone = Tkl, SuccessfulTackles = TklW, TacklesANDIntercep = Tkl.Int,
-         Clearances = Clr, PercDribblersTackled = Tkl., TacklesOwnHalf = Def.3rd,TacklesMidHalf = Mid.3rd, TacklesOppositeHalf = Att.3rd, Interceptions = Int,DribblersTackled = Tkl.1,TotalTacklesAttempts = Att, PercSuccTackles = Tkl., MissedTackles = Lost, BlockedShots = Sh, BlockedPasses = Pass, Errors = Err)
-
-
-# GCA stats
-
-# SCA is an advanced metric that tracks the two offensive/attacking actions that directly lead to a shot on # goal, Following the same logic as a Shot-Creating Action, a Goal-Creating Action is an advanced metric that tracks the two offensive/attacking actions that leads to a goal. These follow the same criteria as  the above list. The difference is that one causes a goald, the other an scoring chance
-
-# SCA is a sum of PassLive, PassDead, TO, Sh Fld, Def, they are different stats that contribute to it, and  SCA90s can be inferred as SCA*90s returns SCA90s
-# GCA follows the same deduction as before
-
-gca_cols <- c("SCA90","PassLive", "PassDead", "TO", "Sh", "Fld", "Def", "GCA90", "PassLive.1", "PassDead.1", "TO.1", "Sh.1", "Fld.1", "Def.1")
-
-gca_stats <- gca_stats %>% select(-all_of(gca_cols))
-
-gca_stats <- gca_stats %>% 
-  rename(ShotCreatingActions = SCA,ShotCreatingActions90 = SCA90,PassLToSCA = PassLive, PassDToSCA = PassDead,DribblesToSCA = TO,
-         ShotsToSCA = Sh,FoulsDrawnToSCA = Fld,DefenseToSCA = Def,GoalCreatingActions = GCA, GoalCreatingActions90 = GCA90, PassLToGCA = PassLive.1, PassDToGCA = PassDead.1,
-         DribblesToGCA = TO.1, ShotsToGCA = Sh.1,FoulsDrawnToSCA = Fld.1, DefenseToGCA = Def.1)
-
-# Misc stats
-
-# X2CrdY is when the player is suspended by 2 yellow cards instead of one red card, this is included in the Red Card statistic. TklW and Int are already included in the defense dataset, Won. refers to the aerial duels won, and it divides won and lost, so we can remove them. Own goals are many times fortunate and dont affect the skill value of a player. PKwon and PKcon refer to the amount of penalties conceded and won, but not many players have a value here so we will remove it as it is irrelevant. Crs refers to crosses and will appear in a future dataset 
-
-misc_cols <- c("X2CrdY", "TklW", "Int", "Won", "Lost", "OG", "PKwon", "PKcon", "Crs")
-
-
-misc_stats <- misc_stats %>% select(-all_of(misc_cols))
-
-misc_stats <- misc_stats %>% 
-  rename(YellowCards = CrdY, RedCards = CrdR, FoulsCommited = Fls, FoulsDrawn = Fld, Offsides = Off, RecoveredBalls = Recov, PercAerialDuelsWon = Won.)
-
-# Passing Stats
-
-#Cmp. is the percentage of the completed passes in terms of the attempted ones, therefore we can remove them. Cmp.1, Att.1, Cmp..1,Cmp.2,Att.2, Cmp..2, Cmp.3,Att.3,Cmp..3 are all relative to the distance of the passes, which is not of much interest as of right now and both TotDist and PrgDist contain a lot of information about the distance of passes. 1/3, PPA, CrsPa, PrgP are also covered as they all refer to progressive passes. A.xAG is assists minus the xAG, therefore we can remove it.
-
-passing_cols <- c("Cmp.","Cmp.1", "Att.1", "Cmp..1","Cmp.2","Att.2", "Cmp..2", "Cmp.3","Att.3","Cmp..3","X1.3", "PPA", "CrsPA", "PrgP","A.xAG")
-
-passing_stats <- passing_stats %>% select(-all_of(passing_cols))
-
-passing_stats <- passing_stats %>% 
-  rename(CompletedPasses = Cmp, AttemptedPasses = Att, PassingDistance = TotDist, ForwardPassingDistance = PrgDist, Assists = Ast, ExpectedAssistsGoal = xAG, ExpectedAssists = xA,  KeyPasses = KP)
-
-# Posession Stats
-
-
-# Touches is a sum of Def.Pen, Def.3rd, Mid.3rd, Att.3rd, Att.Pen, Live so we can remove them. Succ. is the division of Att and Succ which refers to the number of times the attacker has dribbled the defender divided by the total attemps. Tkld, Tkld. are two variables directly related to the previous so we can also take them out. X1.3, CPA, Mis are not really valuable. TotDist and PrgDist will have different names to differentiate from the previous dataset that used the same variables. Rec, PrgR refer to the times the player received a good pass where in most of the cases if a pass is missed it is usually the passers fault rather than the receiver.
-
-
-posession_cols <- c("Def.Pen", "Def.3rd", "Mid.3rd", "Att.3rd", "Att.Pen", "Live", "Att", "Succ", "Tkld", "Tkld.","X1.3", "CPA", "Mis", "Rec", "PrgR", "PrgC")
-
-possession_stats <- possession_stats %>% select(-all_of(posession_cols))
-
-possession_stats <- possession_stats %>% 
-  rename(DistanceRanBall = TotDist, ForwardDistanceRanBall = PrgDist, PercSuccessfulDribbles = Succ., Dispossessed = Dis)
-
-# Shooting Stats
-
-# With goals, shots and shots on target we can infer SoT., Sh.90, SoT.90, G.Sh, G.SoT. As not many players shoot penalties or free kicks we will not take into account this, FK, PK and PKatt will be removed. npxG/Sh can be calculated with both variables, as well as G.xG and np.G.xG can also be calculated with npxG and xG
-
-shooting_cols <- c("SoT.", "Sh.90", "SoT.90", "G.Sh", "G.SoT","FK", "PK","PKatt", "npxG.Sh", "G.xG", "np.G.xG")
-
-shooting_stats <- shooting_stats %>% select(-all_of(shooting_cols))
-
-shooting_stats <- shooting_stats %>% 
-  rename(Goals = Gls, Shots = Sh, ShotsOnTarget = SoT, ShotDistance = Dist, ExpectedGoals = xG, NonPenaltyExpectedGoals = npxG)
-
-# Keepers one
-
-# The statistics MP, Starts, Min will be in another dataset so we will remove them. Save. is calculated by SoTA-GA/SoTa and CS. which refers to clean sheets can also be removed. Everything about free kicks and penalties can be removed as it is easy to score from a penalty and harder from a free kick and it usually depends on the quality of the attacker, many times the keeper cannot do much.We will remove PKatt, PKA, PKsv,PKm,Save..1. GA90 can also be inffered with Goals Against and 90s
-
-keepers_cols <- c("MP", "Starts", "Min", "Save.", "CS.", "PKatt", "PKA", "PKsv","PKm","Save..1", "GA90")
-
-keepers_one <- keepers_one %>% select(-all_of(keepers_cols))
-
-keepers_one <- keepers_one %>% 
-  rename(GoalsAllowed = GA, ShotsOnTargetAgainst = SoTA, Won = W, Drawn = D, Lost = L, CleanSheets = CS)
+?stats::dist
+?hclust
+d1 = dist(scaled_data, method = "euclidean")
+d2 = dist(scaled_data, method = "canberra")
 
 
 
-# Playing Time
+hc_euclidean_complete = hclust(d1, method = "complete")
+hc_euclidean_single = hclust(d1, method = "single")
+hc_euclidean_average = hclust(d1, method = "average")
+hc_euclidean_ward = hclust(d1, method = "ward.D")
 
-# Min can be calcualted by 90 * X90S.Mn.Mp can be calculated as Min/Mp, Mn. can also be calculated. Mn.Start will be Min/Starts, Compl can be seen as it is not really important. The same for all sub variables as with minutes we can already kind of see the amount of time played. We will remove Subs, Mn.Sub, unSub. X... is substraction of onG and onGA so we can remove it, and the same for the 90s, X...90. Same for On.Off.1 and On.Off. Minutes is a character therefore we will have to change to numeric
-
-playing_cols <- c("Mn.MP","Min.","Min", "Mn.Start", "Compl", "Subs", "Mn.Sub", "unSub","X...", "X...90", "On.Off", "On.Off.1", "xG...", "xG...90")
-
-playingtime <- playingtime %>% select(-all_of(playing_cols))
-
-playingtime <- playingtime %>% 
-  rename(MatchesPlayed = MP, PointsPerMatch = PPM, GoalsByTeam = onG, GoalsAgainstTeam = onGA, ExepectedGoalsByTeam = onxG, ExpectedGoalsAgainstTeam = onxGA )
+hc_canberra_complete = hclust(d2, method = "complete")
+hc_canberra_single = hclust(d2, method = "single")
+hc_canberra_average = hclust(d2, method = "average")
+hc_canberra_ward = hclust(d2, method = "ward.D")
 
 ```
+
+To see which method is better we will obtain the silhouette values for each of the hierarchical clusters we have done before. The one who yields a mean value closes to one will be the best one. As this one will indicate that the point is closest to its own cluster rather than the nearest other cluster. If the value is negative this will likely be a misclassification.
+
+Based on our previous clustering analysis we will use the cutree function to cut at 5 clusters, which as seen in the previous method, it appears to be the best number of clusters for our data.
+
+```{r}
+# Establish the number of clusters where to cut the dendogram
+chosen_k = 5
+
+# Calculate Silhouette Scores for Euclidean Distance
+silhouette_ec <- silhouette(cutree(hc_euclidean_complete, k = chosen_k), d1)
+mean_silhouette_ec <- mean(silhouette_ec[, 3])
+
+silhouette_es <- silhouette(cutree(hc_euclidean_single, k = chosen_k), d1)
+mean_silhouette_es <- mean(silhouette_es[, 3])
+
+silhouette_ea <- silhouette(cutree(hc_euclidean_average, k = chosen_k), d1)
+mean_silhouette_ea <- mean(silhouette_ea[, 3])
+
+silhouette_ew <- silhouette(cutree(hc_euclidean_ward, k = chosen_k), d1)
+mean_silhouette_ew <- mean(silhouette_ew[, 3])
+
+# Calculate Silhouette Scores for Canberra Distance
+silhouette_cc <- silhouette(cutree(hc_canberra_complete, k = chosen_k), d2)
+mean_silhouette_cc <- mean(silhouette_cc[, 3])
+
+silhouette_cs <- silhouette(cutree(hc_canberra_single, k = chosen_k), d2)
+mean_silhouette_cs <- mean(silhouette_cs[, 3])
+
+silhouette_ca <- silhouette(cutree(hc_canberra_average, k = chosen_k), d2)
+mean_silhouette_ca <- mean(silhouette_ca[, 3])
+
+silhouette_cw <- silhouette(cutree(hc_canberra_ward, k = chosen_k), d2)
+mean_silhouette_cw <- mean(silhouette_cw[, 3])
+
+mean_silhouettes <- c(
+  "Euclidean Complete" = mean_silhouette_ec,
+  "Euclidean Single" = mean_silhouette_es,
+  "Euclidean Average" = mean_silhouette_ea,
+  "Euclidean Ward" = mean_silhouette_ew,
+  "Canberra Complete" = mean_silhouette_cc,
+  "Canberra Single" = mean_silhouette_cs,
+  "Canberra Average" = mean_silhouette_ca,
+  "Canberra Ward" = mean_silhouette_cw
+)
+
+best_method <- names(mean_silhouettes)[which.max(mean_silhouettes)]
+best_value <- max(mean_silhouettes)
+
+print(paste("Best method is:", best_method, "with a value of ", best_value))
+
+
+```
+
+From all the methods obtained, we see the best obtained was with Euclidean Distance and single linkage.
+
+d1 = dist(scaled_data, method = "euclidean")
+
+hc_euclidean_single = hclust(d1, method = "single")
+
+```{r}
+fviz_dend(x = hc_euclidean_single,
+          k=5,
+          palette = "jco", 
+          rect = TRUE, rect_fill = TRUE, 
+          rect_border = "jco"          
+)
+
+
+```
+
+As it will be complicated to see this using a dendogram, we will do it using a phylogenic tree.
+
+```{r}
+fviz_dend(x = hc_euclidean_single,
+          k = 5,
+          color_labels_by_k = TRUE,
+          cex = 0.8,
+          type = "phylogenic",
+          repel = TRUE)+  labs(title="Top 5 European Football Leagues Tree Structure") + theme(axis.text.x=element_blank(),axis.text.y=element_blank())
+```
+
+## EM CLUSTERING
+
+Assumes each data variable follows a probability distribution, in our case Gaussian Distribution, calculates the probability of each point belonging to each cluster based on the current estimates. It will update the parameters such as covariances to maximize the likelihood of the data
+
+```{r}
+res.Mclust <- Mclust(scaled_data)
+summary(res.Mclust)
+```
+
+This returns that all points belong to one cluster.
+
+## Heatmaps
+
+Heatmaps are fantastic ways to see the relationships of data, it will use dendograms, which are structures already seen in hierarchical clustering.
+
+This will be done, with Euclidean and Single method as we have seen this is the best method.
+
+To plot this heatmap, we will use the pheatmap library as with the number of observations we currently have
+
+```{r}
+library(pheatmap)
+
+# Generate heatmap with better control over dendrogram appearance
+pheatmap(scaled_data,
+         clustering_distance_rows = "euclidean",
+         clustering_method = "single",
+         fontsize_row = 8,   
+         fontsize_col = 8,   
+         angle_col = 90,      
+         treeheight_row = 50, 
+         treeheight_col = 50) 
+```
+
+These graph is not really good for visualizing the similarities between players as there are around 2000 players for which the distances are computed and it is really hard to visualize this. But it shows the similarities between many variables so this graph is useful for our project. We can see by looking at the length of the branches, the shortest the branch the closer two variables are related. By looking at the graph we can see that these relations make sense, such as Shots On Target Against and Saves which are really related. Attempted Passes and Touches are also really similar, these are just a few examples, but both of these combinations make a lot of sense.
