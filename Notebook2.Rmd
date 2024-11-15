@@ -1119,11 +1119,25 @@ When we plot the clustering against the positions (our initial hypothesis), we o
 # Deciding number of clusters
 
 ```{r}
+library("caret")
+
 # Filtering out goalkeepers
 full_data_no_gk <- full_data %>% filter(Pos != "GK")
 numeric_data_no_gk <- select_if(full_data_no_gk, is.numeric)
+# One-hot encode the "Pos" column
+dummy <- dummyVars("~ Pos", data = full_data_no_gk)
+one_hot_encoded_pos <- predict(dummy, newdata = full_data_no_gk)
+# Combine numeric data and the one-hot encoded columns
+numeric_data_no_gk <- cbind(numeric_data_no_gk, one_hot_encoded_pos)
 numeric_data_no_gk <- numeric_data_no_gk[, !colnames(numeric_data_no_gk) %in% c("GoalsAllowed", "ShotsOnTargetAgainst", "Saves", "Won", "Drawn", "Lost", "CleanSheets")] 
 scaled_data_no_gk <- scale(sqrt(numeric_data_no_gk))
+
+one_hot_encoded_pos <- predict(dummy, newdata = full_data)
+# Combine numeric data and the one-hot encoded columns
+numeric_data <- cbind(numeric_data, one_hot_encoded_pos)
+scaled_data <- scale(sqrt(numeric_data))
+
+
 
 pca_result <- prcomp(scaled_data)
 pca_result_no_gk <- prcomp(scaled_data_no_gk)
@@ -1189,10 +1203,10 @@ cluster_comparison <- function(data) {
 }
 
 # Run the function on your datasets
-#cluster_comparison(scaled_data)
-#cluster_comparison(scaled_data_no_gk)
-#cluster_comparison(pca_data)
-#cluster_comparison(pca_data_no_gk)
+cluster_comparison(scaled_data)
+cluster_comparison(scaled_data_no_gk)
+cluster_comparison(pca_data)
+cluster_comparison(pca_data_no_gk)
 
 
 ```
@@ -1200,7 +1214,7 @@ cluster_comparison <- function(data) {
 # Interpretation of clusters
 
 ```{r}
-final_kmeans <- kmeans(pca_data, centers = 5, nstart = 1000)
+final_kmeans <- kmeans(pca_data, centers = 4, nstart = 1000)
 
 groups <- final_kmeans$cluster
 barplot(table(groups), col="blue")
@@ -1216,7 +1230,8 @@ pca_cluster_data <- pca_data %>%
          Position = full_data$Pos,
          GoalsAssists = full_data$Goals + full_data$Assists,
          CompletedPasses = full_data$CompletedPasses,
-         Tackles = full_data$TacklesANDIntercep)  # Assuming 'full_data' has 'Pos' column
+         Tackles = full_data$TacklesANDIntercep,
+         X90s = full_data$X90s)  # Assuming 'full_data' has 'Pos' column
 
 # Plot PCA with ggplot2, using color for 'Position' and shape for 'Cluster'
 ggplot(pca_cluster_data, aes(x = PC1, y = PC2, color = as.factor(Cluster), size = 0.5*GoalsAssists)) + 
@@ -1236,6 +1251,59 @@ ggplot(pca_cluster_data, aes(x = PC1, y = PC2, color = as.factor(Cluster), size 
   labs(title = "PCA of Clusters with Position Differentiation",
        x = "Principal Component 1", y = "Principal Component 2") +
   theme_minimal()
+
+ggplot(pca_cluster_data, aes(x = PC1, y = PC2, color = as.factor(Cluster), size = 0.25*X90s)) + 
+  geom_point(aes(shape = Position, alpha=0.8))+
+  labs(title = "PCA of Clusters with Position Differentiation",
+       x = "Principal Component 1", y = "Principal Component 2") +
+  theme_minimal()
+```
+
+```{r}
+# Step 1: Create a data frame with cluster assignments and positions
+pca_cluster_data <- pca_data %>%
+  mutate(Cluster = final_kmeans$cluster, Position = full_data$Pos)
+
+# Step 2: Calculate counts of each Position in each Cluster
+position_counts <- pca_cluster_data %>%
+  group_by(Cluster, Position) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+# Step 3: Calculate the total number of observations in each Cluster
+cluster_totals <- pca_cluster_data %>%
+  group_by(Cluster) %>%
+  summarise(total = n())
+
+# Step 4: Merge the position counts with cluster totals to calculate percentages
+position_percentages <- position_counts %>%
+  left_join(cluster_totals, by = "Cluster") %>%
+  mutate(percentage = (count / total) * 100)
+
+# View the result
+position_percentages
+```
+
+```{r}
+library(dbscan)
+kNNdistplot(scaled_data, k = 3) # Choose k based on MinPts
+abline(h = 4.7, col = "red", lty = 2) # Mark your current eps
+```
+
+```{r}
+library("fpc")
+
+dbscan_cluster <- dbscan::dbscan(scaled_data, eps = 5, minPts = 3)
+
+cluster_2_indices <- which(dbscan_cluster$cluster == 2)
+pca_data_no_gk[cluster_2_indices, ]
+                                 
+
+fviz_cluster(object = dbscan_cluster, data = scaled_data, stand = FALSE,
+             geom = "point", ellipse = FALSE, show.clust.cent = FALSE,
+             pallete = "jco") +
+  theme_bw() +
+  theme(legend.position = "bottom")
 ```
 
 ## CLUSTERING WITH ALL THE VARIABLES
