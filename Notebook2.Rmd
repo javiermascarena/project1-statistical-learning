@@ -8,32 +8,24 @@ date: "2024-11-09"
 
 We have chosen some datasets which represent statistics from all players in the Top 5 European Leagues which measure their performance in their domestic league in the Season 2022-2023. In this project we will analyse this datasets to obtain insights and different information about these football players. This could then be used in scouting, training or performance improvement, between many other related applications.
 
-# **SET UP**
+# **1. SET UP**
 
 ```{r}
 rm(list = ls())
-# AÑADIR CODIGO PARA QUE MIRE SI EL PROFESOR TIENE EL PAQUETE INSTALADO O NO
-# Importing libraries
-library("dplyr")
-library("skimr")
-library("ggplot2")
-library("ggrepel")
-library("stringi")
-library("GGally")
-library("factoextra")
-library("corrplot")
-library("FactoMineR")
-library("psych")
-library("GPArotation")
-library("reshape2")
-library("tidyr")
-library("patchwork")
-library("ellipse")
-library("RColorBrewer")
-library("cluster")
-library("mclust")
-library("igraph")
-library("pheatmap")
+
+# For reproducibility pourposes
+set.seed(123)
+
+# List of required libraries
+required_libraries <- c("dplyr", "skimr", "ggplot2", "ggrepel", "stringi", "GGally", "factoextra", "corrplot", "FactoMineR", "psych", "GPArotation", "reshape2", "tidyr", "patchwork", "ellipse", "RColorBrewer", "cluster", "mclust", "igraph", "pheatmap", "caret", "plotly", "kernlab")
+
+# Install and load libraries
+for (lib in required_libraries) {
+  if (!require(lib, character.only = TRUE)) {
+    install.packages(lib, dependencies = TRUE)
+    library(lib, character.only = TRUE)
+  }
+}
 ```
 
 We have different datasets which contain different statistics from different players which we will need to combine to obtain a richer and more useful dataset.
@@ -55,37 +47,31 @@ playingtime <- read.csv("Big5-playingtimeStats22-23.csv", sep = ",")
 
 ```
 
-# **DATA PREPROCESSING**
+# **2. DATA PREPROCESSING**
 
 We want to group all these datasets in one single one, but doing this could potentially affect our analysis as we will have a really high number of dimensions, we won't handle duplicates or NA values just yet and we will fully focus on reducing the amount of dimensions each dataset has.
 
-Therefore, we will look at each dataset independently handling the unimportant columns or columns that can be inferred from other datasets, or columns that are linear combinations of other columns, all of these possibilites will help us reduce dimensionality. We will also rename the variables for a better understanding and clearer explanation when visualizing the data.
+Therefore, we will look at each dataset independently handling the unimportant columns, columns that can be inferred from other datasets, or columns that are linear combinations of other columns, all of these possibilites will help us reduce dimensionality. We will also rename the variables for a better understanding and clearer explanation when visualizing the data.
 
 ```{r}
 # Defense Stats
 
-#  The total amount of tackles (Tkl) is the sum of Def.3rd, Mid.3rd and Att.3rd which just refer to where in the pitch those tackles were made. Tkl.Int is a sum of both tackles and interceptions therefore we can keep this columns and eliminate both interceptions and tackles. Blocks are a sum of Sh and Pass which refers to the different type of blocks. Tkl.1 is tackles in the first half, already included in the first variable. Tkl.1 measures the percentage of lost balls when Att is done, it divides Att and Lost. Many players dont have errors, and at the same time errors leading to goal are mostly done by defenders as an error in the defense side is more crucial, therefore we will eliminate it as well.
+# The total amount of tackles (Tkl) is the sum of Def.3rd, Mid.3rd and Att.3rd which just refer to where in the pitch those tackles were made. Tkl.Int is a sum of both tackles and interceptions therefore we can keep this columns and eliminate both interceptions and tackles. Blocks are a sum of Sh and Pass which refers to the different type of blocks. Tkl.1 is tackles in the first half, already included in the first variable. Tkl.1 measures the percentage of lost balls when Att is done, it divides Att and Lost. Many players dont have errors, and at the same time errors leading to goal are mostly done by defenders as an error in the defense side is more crucial, therefore we will eliminate it as well.
 
 defense_cols <- c("Def.3rd","Mid.3rd","Att.3rd","Tkl.1","Int","Sh", "Pass", "Att", "Lost","Err")
-
 defense_stats <- defense_stats %>% select(-all_of(defense_cols))
-
 defense_stats <- defense_stats %>% 
   rename(TacklesDone = Tkl, SuccessfulTackles = TklW, TacklesANDIntercep = Tkl.Int,
          Clearances = Clr, PercDribblersTackled = Tkl.)
 
-
 # GCA stats
 
 # SCA is an advanced metric that tracks the two offensive/attacking actions that directly lead to a shot on # goal, Following the same logic as a Shot-Creating Action, a Goal-Creating Action is an advanced metric that tracks the two offensive/attacking actions that leads to a goal. These follow the same criteria as  the above list. The difference is that one causes a goald, the other an scoring chance
-
 # SCA is a sum of PassLive, PassDead, TO, Sh Fld, Def, they are different stats that contribute to it, and  SCA90s can be inferred as SCA*90s returns SCA90s
 # GCA follows the same deduction as before
 
 gca_cols <- c("SCA90","PassLive", "PassDead", "TO", "Sh", "Fld", "Def", "GCA90", "PassLive.1", "PassDead.1", "TO.1", "Sh.1", "Fld.1", "Def.1")
-
 gca_stats <- gca_stats %>% select(-all_of(gca_cols))
-
 gca_stats <- gca_stats %>% 
   rename(ShotCreatingActions = SCA, GoalCreatingActions = GCA )
 
@@ -94,10 +80,7 @@ gca_stats <- gca_stats %>%
 # X2CrdY is when the player is suspended by 2 yellow cards instead of one red card, this is included in the Red Card statistic. TklW and Int are already included in the defense dataset, Won. refers to the aerial duels won, and it divides won and lost, so we can remove them. Own goals are many times fortunate and dont affect the skill value of a player. PKwon and PKcon refer to the amount of penalties conceded and won, but not many players have a value here so we will remove it as it is irrelevant. Crs refers to crosses and will appear in a future dataset 
 
 misc_cols <- c("X2CrdY", "TklW", "Int", "Won", "Lost", "OG", "PKwon", "PKcon", "Crs")
-
-
 misc_stats <- misc_stats %>% select(-all_of(misc_cols))
-
 misc_stats <- misc_stats %>% 
   rename(YellowCards = CrdY, RedCards = CrdR, FoulsCommited = Fls, FoulsDrawn = Fld, Offsides = Off, RecoveredBalls = Recov, PercAerialDuelsWon = Won.)
 
@@ -106,22 +89,17 @@ misc_stats <- misc_stats %>%
 #Cmp. is the percentage of the completed passes in terms of the attempted ones, therefore we can remove them. Cmp.1, Att.1, Cmp..1,Cmp.2,Att.2, Cmp..2, Cmp.3,Att.3,Cmp..3 are all relative to the distance of the passes, which is not of much interest as of right now and both TotDist and PrgDist contain a lot of information about the distance of passes. 1/3, PPA, CrsPa, PrgP are also covered as they all refer to progressive passes. A.xAG is assists minus the xAG, therefore we can remove it.
 
 passing_cols <- c("Cmp.","Cmp.1", "Att.1", "Cmp..1","Cmp.2","Att.2", "Cmp..2", "Cmp.3","Att.3","Cmp..3","X1.3", "PPA", "CrsPA", "PrgP","A.xAG")
-
 passing_stats <- passing_stats %>% select(-all_of(passing_cols))
-
 passing_stats <- passing_stats %>% 
   rename(CompletedPasses = Cmp, AttemptedPasses = Att, PassingDistance = TotDist, ForwardPassingDistance = PrgDist, Assists = Ast, ExpectedAssistsGoal = xAG, ExpectedAssists = xA,  KeyPasses = KP)
 
 # Posession Stats
 
-
 # Touches is a sum of Def.Pen, Def.3rd, Mid.3rd, Att.3rd, Att.Pen, Live so we can remove them. Succ. is the division of Att and Succ which refers to the number of times the attacker has dribbled the defender divided by the total attemps. Tkld, Tkld. are two variables directly related to the previous so we can also take them out. X1.3, CPA, Mis are not really valuable. TotDist and PrgDist will have different names to differentiate from the previous dataset that used the same variables. Rec, PrgR refer to the times the player received a good pass where in most of the cases if a pass is missed it is usually the passers fault rather than the receiver.
 
 
 posession_cols <- c("Def.Pen", "Def.3rd", "Mid.3rd", "Att.3rd", "Att.Pen", "Live", "Att", "Succ", "Tkld", "Tkld.","X1.3", "CPA", "Mis", "Rec", "PrgR", "PrgC")
-
 possession_stats <- possession_stats %>% select(-all_of(posession_cols))
-
 possession_stats <- possession_stats %>% 
   rename(DistanceRanBall = TotDist, ForwardDistanceRanBall = PrgDist, PercSuccessfulDribbles = Succ., Dispossessed = Dis)
 
@@ -130,9 +108,7 @@ possession_stats <- possession_stats %>%
 # With goals, shots and shots on target we can infer SoT., Sh.90, SoT.90, G.Sh, G.SoT. As not many players shoot penalties or free kicks we will not take into account this, FK, PK and PKatt will be removed. npxG/Sh can be calculated with both variables, as well as G.xG and np.G.xG can also be calculated with npxG and xG
 
 shooting_cols <- c("SoT.", "Sh.90", "SoT.90", "G.Sh", "G.SoT","FK", "PK","PKatt", "npxG.Sh", "G.xG", "np.G.xG")
-
 shooting_stats <- shooting_stats %>% select(-all_of(shooting_cols))
-
 shooting_stats <- shooting_stats %>% 
   rename(Goals = Gls, Shots = Sh, ShotsOnTarget = SoT, ShotDistance = Dist, ExpectedGoals = xG, NonPenaltyExpectedGoals = npxG)
 
@@ -141,9 +117,7 @@ shooting_stats <- shooting_stats %>%
 # The statistics MP, Starts, Min will be in another dataset so we will remove them. Save. is calculated by SoTA-GA/SoTa and CS. which refers to clean sheets can also be removed. Everything about free kicks and penalties can be removed as it is easy to score from a penalty and harder from a free kick and it usually depends on the quality of the attacker, many times the keeper cannot do much.We will remove PKatt, PKA, PKsv,PKm,Save..1. GA90 can also be inffered with Goals Against and 90s
 
 keepers_cols <- c("MP", "Starts", "Min", "Save.", "CS.", "PKatt", "PKA", "PKsv","PKm","Save..1", "GA90")
-
 keepers_one <- keepers_one %>% select(-all_of(keepers_cols))
-
 keepers_one <- keepers_one %>% 
   rename(GoalsAllowed = GA, ShotsOnTargetAgainst = SoTA, Won = W, Drawn = D, Lost = L, CleanSheets = CS)
 
@@ -154,9 +128,7 @@ keepers_one <- keepers_one %>%
 # Min can be calcualted by 90 * X90S.Mn.Mp can be calculated as Min/Mp, Mn. can also be calculated. Mn.Start will be Min/Starts, Compl can be seen as it is not really important. The same for all sub variables as with minutes we can already kind of see the amount of time played. We will remove Subs, Mn.Sub, unSub. X... is substraction of onG and onGA so we can remove it, and the same for the 90s, X...90. Same for On.Off.1 and On.Off. Minutes is a character therefore we will have to change to numeric
 
 playing_cols <- c("Mn.MP","Min.","Min", "Mn.Start", "Compl", "Subs", "Mn.Sub", "unSub","X...", "X...90", "On.Off", "On.Off.1", "xG...", "xG...90")
-
 playingtime <- playingtime %>% select(-all_of(playing_cols))
-
 playingtime <- playingtime %>% 
   rename(MatchesPlayed = MP, PointsPerMatch = PPM, GoalsByTeam = onG, GoalsAgainstTeam = onGA, ExepectedGoalsByTeam = onxG, ExpectedGoalsAgainstTeam = onxGA )
 ```
@@ -176,8 +148,6 @@ merged_players <- inner_join(defense_stats, gca_stats, by = repeated_columns)%>%
                   inner_join(shooting_stats, by = repeated_columns)
 
 skim(merged_players)
-
-
 ```
 
 We now have the problem that goalkeepers have different stats to players, therefore the number of variables varies and we cannot join them to the same dataset. Instead we need to add the columns which are not in players to goalkeepers with a 0 value for each entry and viceversa.
@@ -238,15 +208,13 @@ final_players <- final_players %>%
 sum(duplicated(final_players))
 ```
 
-**NA Values**
+## **2.1 NA Values**
 
 Using a barplot to see the columns with NA values.
 
 ```{r}
 barplot(colMeans(is.na(final_players)), las=2)
 ```
-
-**Median Imputation**
 
 Since all NA values are in numerical columns, we can replace these NAs by the median of that column.
 
@@ -271,7 +239,7 @@ colnames(data_fifa)
 sum(duplicated(data_fifa$Name))
 ```
 
-As it has happened with our previous football datasets, we will have to modify duplicate values
+As it has happened with our previous football datasets, we will have to modify duplicate values.
 
 ```{r}
 # Obtaining the data without repeated players
@@ -360,26 +328,25 @@ We observe that some observations have been lost. If we look closely at the data
 not_merged <- anti_join(final_players, full_data, by = "Player")
 ```
 
-**Outliers**
+## 2.2 Outliers
 
-Outliers are actually important as many players could have a fantastic season compared to others so it is important to keep them. But there are many players who are not in the managers rotation and they do not play much minutes so we will eliminate them as they will not provide useful information.
+Outliers are actually important as many players could have a fantastic season compared to others so it is important to keep them, since outliers in our dataset can represente very good players like Messi. But there are many players who are not in the managers rotation and they do not play much minutes so we will eliminate them as they will not provide useful information and are outliers after all.
 
 ```{r}
 ggplot(full_data) +
   aes(x = X90s)+ 
-  geom_area(stat = "bin",fill="lightblue", color="blue", binwidth = 40) + 
+  geom_density(fill="lightblue", color="blue") + 
    theme_minimal()
 ```
 
-X90s is a representation of the total minutes played divided by 90, which shows more or less the amount of games played. Most leagues have a total of 38 games of 90 minutes, with the added minutes, it makes sense the maximum value is 40. But what is really useful here is that there are many players who have not even played a single game and therefore will be irrelevant in our project and analysis, so we will remove them.
+X90s is a representation of the total minutes played divided by 90, which shows more or less the amount of games played. Most leagues have a total of 38 games of 90 minutes, with the added minutes, it makes sense the maximum value is 40. But what is really useful here is that there are many players who have not even played a single game and therefore will be irrelevant in our analysis, so we will remove them.
 
 ```{r}
-
 # Eliminating players that have not played much
 full_data <- full_data[full_data$X90s > 2,]
 ```
 
-**Exploratory Data Analysis**
+## **2.3 Exploratory Data Analysis**
 
 We will now create some graphs to generate some insights and obtain information about the players.
 
@@ -390,7 +357,7 @@ In this plot, we can see as expected that forwards have higher values, it is als
 Also we can clearly see that there is a linear relationship between both variables.
 
 ```{r}
-plot1 <- ggplot(full_data)+
+ggplot(full_data)+
   aes(x = Assists+Goals, y = ExpectedGoals+ExpectedAssists, color = Pos)+
   geom_point(alpha=0.85)+
   geom_text_repel(
@@ -404,9 +371,6 @@ plot1 <- ggplot(full_data)+
   ylab("Expected Goals + Assists") + 
   theme(plot.title = element_text(hjust = 0.5))
 
-# Save the plot 
-#ggsave("goals_assists_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
-
 ```
 
 In this plot we focus on offensive players. Usually players that are more game-changing are targeted by opposing players, and fouling them is one of the most common strategies to stop them. This is why in this plot we compare fouls drawn and the success chance in dribbles.
@@ -414,7 +378,7 @@ In this plot we focus on offensive players. Usually players that are more game-c
 In the plot we can see that players that are good dribblers are usually the most fouled, and also have many carries. The biggest example of this is Vinicius Jr.
 
 ```{r}
-plot2 <- ggplot(full_data)+
+ggplot(full_data)+
   aes(x = PercSuccessfulDribbles, y = FoulsDrawn, color = Pos, size=Carries)+
   geom_point(alpha = 0.85)+
   scale_size_continuous(range = c(1, 8)) +
@@ -427,45 +391,38 @@ plot2 <- ggplot(full_data)+
   xlab("Successful Dribble %") +                      
   ylab("Fouls Drawn") + 
   theme(plot.title = element_text(hjust = 0.5))
-
-# Save the plot 
-#ggsave("dribbles_fouls_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
 ```
 
 In this plot we focus on passes. With this density graph, we observe the range where most players fall into, but also we observe that as players tend to pass more, their accuracy also increases.
 
 ```{r}
-plot3 <- ggplot(full_data, aes(x=100*CompletedPasses/AttemptedPasses, y=PassingDistance/X90s)) +
+ggplot(full_data, aes(x=100*CompletedPasses/AttemptedPasses, y=PassingDistance/X90s)) +
   stat_density_2d(aes(fill = ..level..), geom = "polygon", colour="white")+
   ggtitle("Pass Accuracy % vs Passing Distance per Game")+
   xlab("Pass Accuracy %") +                      
   ylab(" Avg. Passing Distance per Game") + 
   theme(plot.title = element_text(hjust = 0.5))
-
-#ggsave("pass_perc_distance_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
 ```
 
 Next, we created a correlation plot for defensive actions. As we can see except Aerial Duels, the other ones are closely related. However, this defensive actions are more correlated in midfielders, and sometimes forwards, than in defenders which is surprising.
 
 ```{r}
-# Select only the relevant columns for the correlogram
+# Select only the defensive columns for the correlogram
 correlogram_data <- full_data[, c("SuccessfulTackles", "Blocks", "FoulsCommited", "RecoveredBalls", "PercAerialDuelsWon")]
 
-# Create the correlogram
-plot4 <- ggpairs(correlogram_data, 
+# Plotting the correlogram
+ggpairs(correlogram_data, 
         title = "Correlogram of Defensive Actions",
         lower = list(continuous = wrap("points", alpha = 0.3)),
         upper = list(continuous = wrap("cor", size = 4)), 
         ggplot2::aes(colour=full_data$Pos)) +
-  theme(plot.title = element_text(hjust = 0.5))  # Center the title
-
-#ggsave("defense_corr_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
+  theme(plot.title = element_text(hjust = 0.5)) 
 ```
 
 Here we study goalkeepers. As we can see as the save % increases, the clean sheets also increase but the relation is not that clear, also there are some clear outliers, such as MarcAndre ter Stegen.
 
 ```{r}
-plot5 <- ggplot(full_data)+
+ggplot(full_data)+
   aes(x = 100*Saves/ShotsOnTargetAgainst, y = CleanSheets, color = Comp)+
   geom_point(alpha = 0.85)+
   geom_text_repel(
@@ -477,12 +434,9 @@ plot5 <- ggplot(full_data)+
   xlab("Save %") +                      
   ylab("Clean Sheets") + 
   theme(plot.title = element_text(hjust = 0.5))
-
-# Save the plot 
-#ggsave("goalkeepers_plot.png", plot = plot, width = 10, height = 8, dpi = 300)
 ```
 
-# **Descriptive Analysis**
+## 2.4 Data transformation and scaling
 
 Before using any algorithm on the data we have to check whether or not we scale the data, and also select the numeric columns and the ones we are interested in. We will start by choosing some numeric columns and plotting them to see their distribution.
 
@@ -521,12 +475,12 @@ boxplot(numeric_columns, las=2, col="darkblue")
 
 These boxplots clearly show that we will need to scale the data before performing any algorithm on them. This is due to the difference of variance between each variables.
 
-As the data is mostly left skewed, to fix this we can apply a root to the numeric columns.
+As the data is mostly left skewed, to fix this we can apply a log to the numeric columns to center these distributions before scaling.
 
 ```{r}
 
 # Scaling the data
-scaled_data <- scale(sqrt(numeric_data)) #Numeric columns no numeric data
+scaled_data <- scale(sqrt(numeric_data)) 
 
 boxplot(scaled_data, las=2, col="darkblue")
 
@@ -536,7 +490,7 @@ The variables returned are now scaled, so there will be no big differences in va
 
 Let's look at the correlation between the different variables, to see if we can obtain some insights before running any algorithm. Using the corrplot library for a better understanding.
 
-```{r}
+```{r, fig.height=12, fig.width=12}
 correlation_matrix = cor(numeric_data)
 
 corrplot(correlation_matrix, 
@@ -552,7 +506,9 @@ corrplot(correlation_matrix,
 
 This shows the correlation for the different variables, some of these have high correlation which could affect the PCA. There are also some variables with no or very low correlation which is why the PCA could offer more information about the variables.
 
-# **PRINCIPAL COMPONENT ANALYSIS**
+# **3. PRINCIPAL COMPONENT ANALYSIS**
+
+## 3.1 Motivation
 
 The main objective of PCA is to visualize a high dimensional space in lower dimensions, where the new reduced variables (principal components) will be uncorrelated and linear combinations of the original one. This will also reduce redundancy and find relationships between variables.
 
@@ -595,7 +551,7 @@ get_eigenvalue(pca)
 
 ```
 
-## **Choosing the number of components**
+## 3.2 Selecting the number of components
 
 To select the number of clusters we will build up from the Kaiser Criterion. This criterion states that only the principal components with eigenvalues higher than 1 should appear in the analysis. It is of value greater than 1 as since each eigenvalue represents the variance contributed, a value lower than 1 would mean it explains less than the variables, so it is not useful.
 
@@ -635,7 +591,7 @@ corrplot(
 
 We have chosen to maintain 7 components.This is based on our previous graphs. In the previous scree plot,apart from the eigenvalues obtained we see that the variance explained by 7 components is 85.34% which is a really high value. Apart from that, parallel analysis returned a value of 7 confirming and giving more backup to our statement. Moreover, on our most recent graph,it is easily seen that from Dim 15 to 57 there is basically no representation of the variables. Most variables are well represented in the first few dimensions , and all variables are represented in some way when the 7th dimension is reached.As we started with dimension 57 and we want to reduce dimensionality as much as possible while retaining as much variance as possible, the election of 7 components seems to be pretty good.
 
-# **Interpretation of PCA components**
+## 3.4 Interpretation of components
 
 ```{r}
 # First Component
@@ -774,9 +730,9 @@ The first graph is a really good visual example, as one one side we see many poi
 
 The second graph, is similar due to that we have a bunch of points separated which are the goalkeepers, then we have the principal component 1 which clearly explain more variance with more points as it can easily be seen. This is also due to the fact that most teams have more midfielders in relation to other positions. Midfielders are usually a key part of the success of a team. The rest of points are on the direction of the orthogonal arrows, those points are likely to be the forwards.
 
-The third grah, following the same pattern as before has some separate points which are more than likely to be the goalkeepers.Apart from that most of the variance is explained by the first component which are midfielders and therefore there are more points as most variance is being explained, while the fourth component took into account the wage, so points which are below are higher paid footballers.
+The third graph, following the same pattern as before has some separate points which are more than likely to be the goalkeepers.Apart from that most of the variance is explained by the first component which are midfielders and therefore there are more points as most variance is being explained, while the fourth component took into account the wage, so points which are below are higher paid footballers.
 
-### Interpretation of PCA for individuals
+## 3.5 Interpretation of PCA for individuals
 
 We will now focus on individuals, leagues and nations to see which players most strongly represent the variance on the first components. Basically, the players with the best statistics of the variables that are better explained by the first principal components.
 
@@ -833,9 +789,9 @@ print(comp_mean)
 
 We see that the league with the players who had statistics that best represented the variance was the Ligue1. Nation wise it was Russia and club wise it was FC Barcelona.
 
-# **FACTOR ANALYSIS**
+# **4. FACTOR ANALYSIS**
 
-# **Motivation**
+## 4.1 Motivation
 
 Factor analysis can be very useful in this case. As we know, the factor analysis searches for latent traits in the data, and so can it do in this dataset. Hidden features could range from offensive skill and defensive capability to physical fitness. Therefore it could help us interpret the performance on players based on broader terms rather than just individual statistics.
 
@@ -843,7 +799,7 @@ Combining all of this, factor analysis could be especially valuable if we decide
 
 To finish the justification, it can also help us reduce the dimensionality of the data for training future algorithms as well as minimizing redundancy for highly correlated variables.
 
-# **Number of factors**
+## 4.2 Selecting the number of factors
 
 Before performing factor analysis, one of the key metrics to decide, is the number of factors we want to extract from the data. For this we will use parallel analysis, a method on which new random data is generated from our original data, and the eigenvalues of the actual and the new random data are compared.
 
@@ -860,7 +816,7 @@ As we observe the real eigenvalues stay above the ones of random data, for facto
 
 Before doing the factor analysis there are two choices have to be made. For rotation we chose "oblimin" since we know from before that many variables are really correlated, therefore the rotation matrix does not force the factors to be orthogonal. For score we chose "regression" since it gives the most accurate and unbiased estimations of factors when they may be correlated.
 
-# **Training**
+## 4.3 Interpretation of factors
 
 ```{r}
 # Performing factor analysis and extracting 8 factors
@@ -868,201 +824,196 @@ players.f <- fa(scaled_data, 8, rotate="oblimin", scores="regression")
 print(players.f, cut=0, digits=2)
 ```
 
-# **Factor explanation**
-
-As we can see from the output the total variance explained by all factors is 85%, but we can also observe that the variance explained by each factor alone decreases until it goes flat in about a 5% for the last three.
+As we can see from the output the total variance explained by all factors is \~85%, but we can also observe that the variance explained by each factor alone decreases until it goes flat in about a 5% for the last three.
 
 To comprehend better how each factor is impacted by all variables, we make the following plot.
 
-```{r}
-# Extract loadings and convert to a data frame
+```{r, fig.height=12, fig.width=12}
+# Extract loadings and convert them to a df
 loadings <- as.data.frame(players.f$loadings[])
 loadings$Variable <- rownames(loadings)
 
-# 1st loading
+# 1st loading plot
 
 loadings$Variable <- factor(loadings$Variable, levels = loadings$Variable[order(loadings$MR1, decreasing = T)])
 
 factor1_plot <- ggplot(loadings, aes(x = Variable, y = MR1, fill = MR1 > 0)) +
-  geom_col(color="black") +  # Add points for each variable's loading
+  geom_col(color="black") +  
   labs(title = "1st Factor Loadings for Each Variable", 
        x = "Variables", 
        y = "1st Loading") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
-        strip.text = element_text(size = 12),  # Increase facet title size
-        plot.title = element_text(size = 16),  # Increase overall title size
-        axis.title = element_text(size = 12)) +  # Increase axis title size
+        strip.text = element_text(size = 12),  
+        plot.title = element_text(size = 16),  
+        axis.title = element_text(size = 12)) +  
   scale_color_manual(values = c("red", "blue"), 
                      name = "Loading Sign", 
                      labels = c("Negative", "Positive"))
 
 
-# 2nd loading
+# 2nd loading plot
 
 loadings$Variable <- factor(loadings$Variable, levels = loadings$Variable[order(loadings$MR2, decreasing = T)])
 
 factor2_plot <- ggplot(loadings, aes(x = Variable, y = MR2, fill = MR2 > 0)) +
-  geom_col(color="black") +  # Add points for each variable's loading
+  geom_col(color="black") + 
   labs(title = "2nd Factor Loadings for Each Variable", 
        x = "Variables", 
        y = "2nd Loading") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
-        strip.text = element_text(size = 12),  # Increase facet title size
-        plot.title = element_text(size = 16),  # Increase overall title size
-        axis.title = element_text(size = 12)) +  # Increase axis title size
+        strip.text = element_text(size = 12),  
+        plot.title = element_text(size = 16),  
+        axis.title = element_text(size = 12)) +  
   scale_color_manual(values = c("red", "blue"), 
                      name = "Loading Sign", 
                      labels = c("Negative", "Positive"))
 
-# 3rd loading
+# 3rd loading plot
 
 loadings$Variable <- factor(loadings$Variable, levels = loadings$Variable[order(loadings$MR3, decreasing = T)])
 
 factor3_plot <- ggplot(loadings, aes(x = Variable, y = MR3, fill = MR3 > 0)) +
-  geom_col(color="black") +  # Add points for each variable's loading
+  geom_col(color="black") +  
   labs(title = "3rd Factor Loadings for Each Variable", 
        x = "Variables", 
        y = "3rd Loading") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
-        strip.text = element_text(size = 12),  # Increase facet title size
-        plot.title = element_text(size = 16),  # Increase overall title size
-        axis.title = element_text(size = 12)) +  # Increase axis title size
+        strip.text = element_text(size = 12),  
+        plot.title = element_text(size = 16),  
+        axis.title = element_text(size = 12)) +  
   scale_color_manual(values = c("red", "blue"), 
                      name = "Loading Sign", 
                      labels = c("Negative", "Positive"))
 
-# 4th loading
+# 4th loading plot
 
 loadings$Variable <- factor(loadings$Variable, levels = loadings$Variable[order(loadings$MR4, decreasing = T)])
 
 factor4_plot <- ggplot(loadings, aes(x = Variable, y = MR4, fill = MR4 > 0)) +
-  geom_col(color="black") +  # Add points for each variable's loading
+  geom_col(color="black") +  
   labs(title = "4th Factor Loadings for Each Variable", 
        x = "Variables", 
        y = "4th Loading") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
-        strip.text = element_text(size = 12),  # Increase facet title size
-        plot.title = element_text(size = 16),  # Increase overall title size
-        axis.title = element_text(size = 12)) +  # Increase axis title size
+        strip.text = element_text(size = 12),  
+        plot.title = element_text(size = 16),  
+        axis.title = element_text(size = 12)) + 
   scale_color_manual(values = c("red", "blue"), 
                      name = "Loading Sign", 
                      labels = c("Negative", "Positive"))
 
-# 5th loading
+# 5th loading plot
 
 loadings$Variable <- factor(loadings$Variable, levels = loadings$Variable[order(loadings$MR5, decreasing = T)])
 
 factor5_plot <- ggplot(loadings, aes(x = Variable, y = MR5, fill = MR5 > 0)) +
-  geom_col(color="black") +  # Add points for each variable's loading
+  geom_col(color="black") +  
   labs(title = "5th Factor Loadings for Each Variable", 
        x = "Variables", 
        y = "5th Loading") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
-        strip.text = element_text(size = 12),  # Increase facet title size
-        plot.title = element_text(size = 16),  # Increase overall title size
-        axis.title = element_text(size = 12)) +  # Increase axis title size
+        strip.text = element_text(size = 12),  
+        plot.title = element_text(size = 16),  
+        axis.title = element_text(size = 12)) +  
   scale_color_manual(values = c("red", "blue"), 
                      name = "Loading Sign", 
                      labels = c("Negative", "Positive"))
 
 
-# 6th loading
+# 6th loading plot
 
 loadings$Variable <- factor(loadings$Variable, levels = loadings$Variable[order(loadings$MR6, decreasing = T)])
 
 factor6_plot <- ggplot(loadings, aes(x = Variable, y = MR6, fill = MR6 > 0)) +
-  geom_col(color="black") +  # Add points for each variable's loading
+  geom_col(color="black") +  
   labs(title = "6th Factor Loadings for Each Variable", 
        x = "Variables", 
        y = "6th Loading") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
-        strip.text = element_text(size = 12),  # Increase facet title size
-        plot.title = element_text(size = 16),  # Increase overall title size
-        axis.title = element_text(size = 12)) +  # Increase axis title size
+        strip.text = element_text(size = 12),  
+        plot.title = element_text(size = 16),  
+        axis.title = element_text(size = 12)) +  
   scale_color_manual(values = c("red", "blue"), 
                      name = "Loading Sign", 
                      labels = c("Negative", "Positive"))
 
-# 7th loading
+# 7th loading plot
 
 loadings$Variable <- factor(loadings$Variable, levels = loadings$Variable[order(loadings$MR7, decreasing = T)])
 
 factor7_plot <- ggplot(loadings, aes(x = Variable, y = MR7, fill = MR7 > 0)) +
-  geom_col(color="black") +  # Add points for each variable's loading
+  geom_col(color="black") +
   labs(title = "7th Factor Loadings for Each Variable", 
        x = "Variables", 
        y = "7th Loading") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
-        strip.text = element_text(size = 12),  # Increase facet title size
-        plot.title = element_text(size = 16),  # Increase overall title size
-        axis.title = element_text(size = 12)) +  # Increase axis title size
+        strip.text = element_text(size = 12),  
+        plot.title = element_text(size = 16),  
+        axis.title = element_text(size = 12)) +
   scale_color_manual(values = c("red", "blue"), 
                      name = "Loading Sign", 
                      labels = c("Negative", "Positive"))
 
-# 8th loading
+# 8th loading plot
 
 loadings$Variable <- factor(loadings$Variable, levels = loadings$Variable[order(loadings$MR8, decreasing = T)])
 
 factor8_plot <- ggplot(loadings, aes(x = Variable, y = MR8, fill = MR8 > 0)) +
-  geom_col(color="black") +  # Add points for each variable's loading
+  geom_col(color="black") +  
   labs(title = "8th Factor Loadings for Each Variable", 
        x = "Variables", 
        y = "8th Loading") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
-        strip.text = element_text(size = 12),  # Increase facet title size
-        plot.title = element_text(size = 16),  # Increase overall title size
-        axis.title = element_text(size = 12)) +  # Increase axis title size
+        strip.text = element_text(size = 12),  
+        plot.title = element_text(size = 16),  
+        axis.title = element_text(size = 12)) +  
   scale_color_manual(values = c("red", "blue"), 
                      name = "Loading Sign", 
                      labels = c("Negative", "Positive"))
 
 # Combining plots
-factors_plot <- (factor1_plot + factor2_plot) / (factor3_plot + factor4_plot) / (factor5_plot + factor6_plot) / (factor7_plot + factor8_plot)
-ggsave("factors_plot.png", plot = factors_plot, width = 14, height = 14, dpi = 300)
+p <- (factor1_plot + factor2_plot) / (factor3_plot + factor4_plot) / (factor5_plot + factor6_plot) / (factor7_plot + factor8_plot)
+
+ggsave("factors_plot.jpg", plot = p, device = "jpeg", width = 12, height = 12, dpi = 300)
 ```
 
 For the first factor we observe that variables related to passes and game creation are the most influential, so the latent factor could be midfielders or game-creators. For the second factor goalkeeper variables influence it very positively, while variables of defenders, like tackles are very negative, so the latent factor could be goalkeepers (positive) and defenders (negative). For the last factor we see that offensive-game creators, the ones that create possible goal actions, are really high, so the latent factor should be players with this trait.
 
 For the rest, we observe that the data we added from the FIFA dataset seems to have its own factors, like factor 4 that explains high-value players. Moreover, interestingly we observe that the 5th factor only tries to explain older or younger players.
 
+## 4.4 Interpretation of FA for players
+
 Next, we will see who are the players that score highest and lowest for each factor, to gain more insights about them and confirm what we discussed just before.
 
 ```{r}
-# Extract factor scores from the players.f object
+# Extracting factor scores
 factor_scores <- players.f$scores
-
-# The current order of factors is 2, 1, 8, 7, 3, 4, 6, 5
+# The current order of factors
 current_order <- c(2, 1, 8, 7, 3, 4, 6, 5)
+num_factors <- ncol(factor_scores)  
 
-# Loop through each factor to find the largest and smallest observation
-num_factors <- ncol(factor_scores)  # Number of factors (columns in factor_scores)
-
-# Create empty lists to store the indices of the largest and smallest observations for each factor
+# List of largest and smallest observations
 largest_observations <- list()
 smallest_observations <- list()
 
+# Get idx of the largest and smallest scoring observations for each factor
 for (i in 1:num_factors) {
-  # Get the index of the observation with the largest score for the current factor
   largest_idx <- which.max(factor_scores[, i])
-  
-  # Get the index of the observation with the smallest score for the current factor
   smallest_idx <- which.min(factor_scores[, i])
-  
-  # Store the indices in the lists
+  # Store the idx in the lists
   largest_observations[[i]] <- largest_idx
   smallest_observations[[i]] <- smallest_idx
 }
 
-# Print the results
+# Printing the results
 for (i in 1:num_factors) {
   largest_idx <- largest_observations[[i]]
   smallest_idx <- smallest_observations[[i]]
@@ -1082,34 +1033,36 @@ Finally, we observe that although this analysis does pretty well, it is not perf
 
 As a conclusion, we have pretty reasonably performed factor analysis which has given us meaningful hidden factors that could be used from scouting to improve a players performance, or many other possibilities.
 
-# CLUSTERING
+# 5. CLUSTERING
 
-# Motivation
+## 5.1 Motivation
 
 As we have discussed before, one of the main goals of the project is to classify players into different groups. One very easy example is well-performing players against bad-performing players, but we could gain even more insights. Due to this clustering is a key-part for this player analysis.
 
-# K-means
+## 5.2 K-means
 
-# Initial Clustering
+### 5.2.1 Initial Clustering
 
 Before we move on to fancier methods for k-means, such as kernel-based and choosing thoroughly the number of clusters, we will do a basic initial k-means. The number of cluster will be 4 since at first we think that the player's position could be a very good way to initially describe them.
 
 ```{r}
+# Initial number of clusters
 k <- 4
-set.seed(1)
 
+# Training an initial k-means
 initial_kmeans <- eclust(scaled_data, "kmeans", stand=TRUE, k=k)
+
+# Silhouette plot
 fviz_silhouette(initial_kmeans)
 
 # Perform PCA on scaled data
 pca_result <- prcomp(scaled_data, center = TRUE, scale. = TRUE)
-
-# Extract PCA scores (first two principal components)
+# Get clusters and position of each observation
 pca_cluster_data <- as.data.frame(pca_result$x) %>%
   mutate(Cluster = initial_kmeans$cluster,
-         Position = full_data$Pos)  # Assuming 'full_data' has 'Pos' column
+         Position = full_data$Pos)  
 
-# Plot PCA with ggplot2, using color for 'Position' and shape for 'Cluster'
+# Plot clustering with position diferentiation
 ggplot(pca_cluster_data, aes(x = PC1, y = PC2, color = as.factor(Cluster))) + 
   geom_point(aes(shape = Position, alpha=0.8))+
   scale_shape_manual(values = 1:k) +
@@ -1122,7 +1075,7 @@ As we observe from the silhouette plot, the clusters seem to have a good silhoue
 
 When we plot the clustering against the positions (our initial hypothesis), we observe that the differentiation between them are not that clear. Goalkeepers have their own cluster, as expected, while we see a cluster for maybe more offensive players like midfielders and forwards, and another one for more defensive players, which could be defensive-midfielders or defenders. For the last cluster, it is hard to explain since the position does not seem to matter, therefore it could be classifying average players.
 
-# Deciding number of clusters
+### 5.2.2 Selecting the number of clusters
 
 Choosing the number of clusters is a very difficult topic, but with a combination of different statistics we can have more confidence on our answer. The three metrics we will use are the Within-Cluster Sum of Squares (WSS), the Silhouette Score and the Gap Statistic.
 
@@ -1147,30 +1100,30 @@ Where $W_k^{*(b)}$ is the within-cluster dispersion of reference dataset number 
 To choose even more confidently the number of clusters we will calculate those metrics in our normal dataset, another one without goalkeepers, and a PCA reduced version of those two. For this we first calculate these datasets.
 
 ```{r}
-library("caret")
-
 # Filtering out goalkeepers
 full_data_no_gk <- full_data %>% filter(Pos != "GK")
 numeric_data_no_gk <- select_if(full_data_no_gk, is.numeric)
-# One-hot encode the "Pos" column
+
+# One-hot encoding the positions for more meaningful clustering
 dummy <- dummyVars("~ Pos", data = full_data_no_gk)
 one_hot_encoded_pos <- predict(dummy, newdata = full_data_no_gk)
-# Combine numeric data and the one-hot encoded columns
+# Combining numeric data and the one-hot encoded columns
 numeric_data_no_gk <- cbind(numeric_data_no_gk, one_hot_encoded_pos)
+# Eliminating goalkeeper columns from non-goalkeeper data
 numeric_data_no_gk <- numeric_data_no_gk[, !colnames(numeric_data_no_gk) %in% c("GoalsAllowed", "ShotsOnTargetAgainst", "Saves", "Won", "Drawn", "Lost", "CleanSheets")] 
+# Scaling goalkeeper columns
 scaled_data_no_gk <- scale(sqrt(numeric_data_no_gk))
 
+# One-hot encodingg the poisition in the normal dataset
 one_hot_encoded_pos <- predict(dummy, newdata = full_data)
-# Combine numeric data and the one-hot encoded columns
+# Combining numeric data and the one-hot encoded columns
 numeric_data <- cbind(numeric_data, one_hot_encoded_pos)
 scaled_data <- scale(sqrt(numeric_data))
 
-
-
+# Getting PCA datasets for goalkeeper and non-goalkeeper data
 pca_result <- prcomp(scaled_data)
 pca_result_no_gk <- prcomp(scaled_data_no_gk)
-
-# 2. Extract the scores for the first 7 principal components
+# Extract the scores for the first 7 principal components as before
 pca_data <- as.data.frame(pca_result$x[, 1:7])
 pca_data_no_gk <- as.data.frame(pca_result_no_gk$x[, 1:7])
 ```
@@ -1178,48 +1131,43 @@ pca_data_no_gk <- as.data.frame(pca_result_no_gk$x[, 1:7])
 Here we calculate these metrics for the 4 datasets (this cell takes some time to run).
 
 ```{r}
-library(cluster)
-library(ggplot2)
-
-# Define range of k values
+# Range of k to try
 k_values <- 2:10
 
+# Function to calculate and plot metrics for cluster comparison 
 cluster_comparison <- function(data) {
-  # Initialize vectors to store WSS, Silhouette Scores, and Gap Statistic
+  # Storing WSS, Silhouette Scores and Gap Statistic
   wss_values <- numeric(length(k_values))
   silhouette_values <- numeric(length(k_values))
   gap_stat_values <- numeric(length(k_values))
 
-  # Calculate the Gap Statistic
-  gap_stat <- clusGap(data, FUN = kmeans, K.max = max(k_values), B = 50)  # B = number of bootstrap samples
+  # Calculating the Gap Statistic
+  gap_stat <- clusGap(data, FUN = kmeans, K.max = max(k_values), B = 50)
   
+  # Calculating each metric for each k
   for (i in 1:length(k_values)) {
     k <- k_values[i]
-
     # Fit the k-means model
     kmeans_result <- kmeans(data, centers = k, nstart = 25)
-
-    # Store WSS value (within-cluster sum of squares)
-    wss_values[i] <- kmeans_result$tot.withinss
-
-    # Compute the silhouette score
-    cluster_assignments <- kmeans_result$cluster
-    dist_matrix <- dist(data)  # Euclidean distance matrix
     
+    # Storing WSS value
+    wss_values[i] <- kmeans_result$tot.withinss
+    # Computing the silhouette score
+    cluster_assignments <- kmeans_result$cluster
+    dist_matrix <- dist(data)  
     silhouette_score <- silhouette(cluster_assignments, dist_matrix)
-    silhouette_values[i] <- mean(silhouette_score[, 3])  # Average silhouette score
-
-    # Store the Gap Statistic value for k clusters
+    silhouette_values[i] <- mean(silhouette_score[, 3])  
+    # Storing the Gap Statistic
     gap_stat_values[i] <- gap_stat$Tab[i, "gap"]
   }
 
-  # Plot WSS (Elbow Method)
+  # Plot WSS 
   plot(k_values, wss_values, type = "b", pch = 19, frame = FALSE,
        xlab = "Number of Clusters K",
        ylab = "Within-Cluster Sum of Squares (WSS)",
        main = "Elbow Method for Optimal K")
 
-  # Plot Silhouette Score
+  # Plot avg. Silhouette Score
   plot(k_values, silhouette_values, type = "b", pch = 19, frame = FALSE,
        xlab = "Number of Clusters K",
        ylab = "Average Silhouette Score",
@@ -1232,13 +1180,11 @@ cluster_comparison <- function(data) {
        main = "Gap Statistic for Optimal K")
 }
 
-# Run the function on your datasets
+# Computing metrics of the 4 datasets
 cluster_comparison(scaled_data)
 cluster_comparison(scaled_data_no_gk)
 cluster_comparison(pca_data)
 cluster_comparison(pca_data_no_gk)
-
-
 ```
 
 If we look at the WSS from all four datasets there is no clear elbow but it is usually at 4 to 6 where the decrease in the WSS stops being significant. So those 3 are candidates for number of clusters.
@@ -1251,37 +1197,39 @@ Seems that all metrics point to different directions, especially the Silhouette 
 
 On the other hand, again looking at the mathematical expression of the Gap Statistic, we can see that it performs really well for data were the classes are more broad, since we are comparing when clusters are relevant to when they only may explain noise. Therefore in our case the Gap Statistic will be the most reliable metric. Taking this into account we will choose 5 as the number of clusters for K-means.
 
-# Interpretation of clusters
+### 5.2.3 Interpretation of clusters
 
 For the dataset to train the K-means on, we chose the scaled dataset and not the one with PCA, because although the PCA may eliminate some noise from the original dataset, it also has almost the same number of variables as the number of clusters, which could cause some overfitting problems.
 
 ```{r}
-#final_kmeans <- kmeans(scaled_data, centers = 5, nstart = 1000)
+# Training final K-means
 final_kmeans <- eclust(scaled_data, "kmeans", stand=TRUE, k=5)
+# Silhouette plot
 fviz_silhouette(final_kmeans)
 
 # Perform PCA on scaled data
 pca_result <- prcomp(scaled_data, center = TRUE, scale. = TRUE)
 
-
+# Plotting the number of observations in each cluster
 groups <- final_kmeans$cluster
 barplot(table(groups), col="blue")
-centers <- final_kmeans$centers
 
+centers <- final_kmeans$centers
+# Variable importance in each cluster's center
 barplot(centers[1,], las=2, col="darkblue")
 barplot(centers[2,], las=2, col="darkblue")
 barplot(centers[3,], las=2, col="darkblue")
 barplot(centers[4,], las=2, col="darkblue")
 barplot(centers[5,], las=2, col="darkblue")
 
-# Extract PCA scores (first two principal components)
+# Extracting PCA scores
 pca_cluster_data <- pca_data %>%
-  mutate(Cluster = final_kmeans$cluster,
+  mutate(Cluster = as.factor(final_kmeans$cluster),
          Position = full_data$Pos,
-         GoalsAssists = full_data$Goals + full_data$Assists)  # Assuming 'full_data' has 'Pos' column
+         GoalsAssists = full_data$Goals + full_data$Assists)  
 
-# Plot PCA with ggplot2, using color for 'Position' and shape for 'Cluster'
-ggplot(pca_cluster_data, aes(x = PC1, y = PC2, color = as.factor(Cluster), size = 0.5*GoalsAssists)) + 
+# Cluster plot with position differentiation
+ggplot(pca_cluster_data, aes(x = PC1, y = PC2, color = Cluster, size = GoalsAssists)) + 
   geom_point(aes(shape = Position, alpha=0.8))+
   labs(title = "PCA of Clusters with Position Differentiation",
        x = "Principal Component 1", y = "Principal Component 2") +
@@ -1293,35 +1241,33 @@ Firstly, we can see a huge division between goalkeepers and the rest of the data
 We clearly see that Cluster 1 is for goalkeepers. Cluster 2 is mostly forward-related but with also a big emphasis on not creating much game (passes), so center forwards could qualify for this. Cluster 3 is for players which have very small contributions, so average players or ones that have not played too much. Cluster 4 focuses on passes and defensive statistics, so defensive midfielders and defenders. Finally, Cluster 5 focuses on offensive players, but this time more goal-related, so many forwards should be in this clusters.
 
 ```{r}
-# Step 1: Create a data frame with cluster assignments and positions
+# Creating a data frame with cluster assignments and positions
 pca_cluster_data <- pca_data %>%
   mutate(Cluster = final_kmeans$cluster, Position = full_data$Pos)
 
-# Step 2: Calculate counts of each Position in each Cluster
+# Calculating counts of each position in each cluster
 position_counts <- pca_cluster_data %>%
   group_by(Cluster, Position) %>%
   summarise(count = n()) %>%
   ungroup()
 
-# Step 3: Calculate the total number of observations in each Cluster
+# Calculating the total number of observations in each cluster
 cluster_totals <- pca_cluster_data %>%
   group_by(Cluster) %>%
   summarise(total = n())
 
-# Step 4: Merge the position counts with cluster totals to calculate percentages
+# Merging the position counts with cluster totals to calculate percentages
 position_percentages <- position_counts %>%
   left_join(cluster_totals, by = "Cluster") %>%
   mutate(percentage = (count / total) * 100)
 
-# View the result
-position_percentages
-
+# Plotting the percentage of each position in each cluster
 ggplot(position_percentages, aes(x = as.factor(Cluster), y = percentage, fill = Position)) +
   geom_bar(stat = "identity", position = "stack", color = "black") +
   labs(title = "Position Percentages in Each Cluster",
        x = "Cluster",
        y = "Percentage") +
-  scale_y_continuous(labels = scales::percent_format(scale = 1)) + # Optional: Format y-axis as percentage
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) + 
   theme_minimal() +
   theme(legend.position = "bottom") +
   guides(fill = guide_legend(title = "Position"))
@@ -1330,39 +1276,43 @@ ggplot(position_percentages, aes(x = as.factor(Cluster), y = percentage, fill = 
 
 In this plot we can confirm our hypothesis, Cluster 1 is for goalkeepers. Cluster 2 for traditional forwards. Cluster 3 for average or not good players, that's why the different types of positions in the cluster. Cluster 4 for defenders and defensive midfielders. And Cluster 5 for offensive play-makers offensive midfielders, forwards and even some defenders!
 
-# PAM
+## 5.3 PAM
 
 In K-medoids the center of a cluster is not an abstract point, but an observation in the data, this is the main difference between it and K-means. This makes K-medoids a very stable algorithm in some cases, which could be ours, since having a reference player for a type of player seems like a good idea.
 
-For this we will would assume that the number of optimal clusters is the same as we calculated before in K-means. But to check we will calculate the Silhouette Score and the Gap Statistic.
+### 5.3.1 Selecting the number of clusters
+
+For this we will would assume that the number of optimal clusters is the same as we calculated before in K-means. But to check we will calculate the Silhouette Score and the Gap Statistic. (This cell will take some time to run)
 
 ```{r}
+# Calculating Silhouette score and Gap statistic
 fviz_nbclust(scaled_data, pam, method = 'silhouette', k.max = 10)
 fviz_nbclust(scaled_data, pam, method = 'gap_stat', k.max = 10, nboot = 10)
 ```
 
 We observe that our guess of 5 could be a good value for k again if we follow the elbow method, so we will choose it.
 
-```{r}
-library(plotly)
+### 5.3.2 Interpretation of clusters
 
-# Run PAM clustering
+```{r}
+# Training final PAM clustering
 final_pam <- eclust(scaled_data, "pam", stand = TRUE, k = 5, graph = FALSE)
 
-# Extract cluster assignments
+# Extracting cluster assignments
 cluster_assignments <- factor(final_pam$cluster)
 
+# Plotting the clustering in 2D
 fviz_cluster(final_pam, data = scaled_data, geom = c("point"), pointsize=1) +
   theme_minimal() +
   geom_text(aes(label = names, color = factor(final_pam$cluster), alpha=0.8), hjust = 0, vjust = 0, size = 2, check_overlap = TRUE) +
   scale_fill_brewer(palette = "Paired") +
-  scale_color_brewer(palette = "Paired") # Ensure matching color palette for text
+  scale_color_brewer(palette = "Paired")
 
-
-# Ensure PCA data is in a data frame format and add cluster and player names
+# Adding cluster and player names
 pca_data_3d <- as.data.frame(pca_data) %>%
   mutate(Cluster = cluster_assignments, Names = full_data$Player, Position=full_data$Pos)
 
+# Making a 3D plot of the clustering
 plot_ly(
   data = pca_data_3d,
   x = ~PC1,
@@ -1380,61 +1330,97 @@ plot_ly(
 By the plots we can see that the clustering has remained almost the same as in K-means. But just checking by eye is not enough so we will do some plots to obtain a meaningful answer.
 
 ```{r}
+# Calculating Silhouette score of the final PAM
 fviz_silhouette(final_pam)
 
-# Perform PCA on scaled data
+# Performing PCA on scaled data
 pca_result <- prcomp(scaled_data, center = TRUE, scale. = TRUE)
 
-
+# Plotting the number of observations in each cluster
 groups <- final_pam$cluster
 barplot(table(groups), col="blue")
-centers <- final_pam$medoids
 
+# Variable importance in each cluster's center observation
+centers <- final_pam$medoids
 barplot(centers[1,], las=2, col="darkblue")
 barplot(centers[2,], las=2, col="darkblue")
 barplot(centers[3,], las=2, col="darkblue")
 barplot(centers[4,], las=2, col="darkblue")
 barplot(centers[5,], las=2, col="darkblue")
 
-# Step 1: Create a data frame with cluster assignments and positions
+# Creating a data frame with cluster assignments and positions
 pca_cluster_data <- pca_data %>%
   mutate(Cluster = final_pam$cluster, Position = full_data$Pos)
 
-# Step 2: Calculate counts of each Position in each Cluster
+# Calculating counts of each Position in each Cluster
 position_counts <- pca_cluster_data %>%
   group_by(Cluster, Position) %>%
   summarise(count = n()) %>%
   ungroup()
 
-# Step 3: Calculate the total number of observations in each Cluster
+# Calculating the total number of observations in each Cluster
 cluster_totals <- pca_cluster_data %>%
   group_by(Cluster) %>%
   summarise(total = n())
 
-# Step 4: Merge the position counts with cluster totals to calculate percentages
+# Merging the position counts with cluster totals to calculate percentages
 position_percentages <- position_counts %>%
   left_join(cluster_totals, by = "Cluster") %>%
   mutate(percentage = (count / total) * 100)
 
-# View the result
-position_percentages
-
+# Plotting the percentage of each position in each cluster
 ggplot(position_percentages, aes(x = as.factor(Cluster), y = percentage, fill = Position)) +
   geom_bar(stat = "identity", position = "stack", color = "black") +
   labs(title = "Position Percentages in Each Cluster",
        x = "Cluster",
        y = "Percentage") +
-  scale_y_continuous(labels = scales::percent_format(scale = 1)) + # Optional: Format y-axis as percentage
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
   theme_minimal() +
   theme(legend.position = "bottom") +
   guides(fill = guide_legend(title = "Position"))
 
+# Calculating similarity between K-means and K-medoids
 adjustedRandIndex(final_kmeans$cluster, final_pam$clustering)
 ```
 
 If we look more closely at the centers and the clusters in general we see that the clustering is very similar to the K-means, with almost the same plot and differentiation between positions, just changed in the order of clusters. This means that our model is robust and does not vary a lot between algorithms.
 
-## Hierarchical Clustering
+## 5.4 Kernel K-means
+
+In K-means and PAM we assume that the data is linearly separable, which may be correct for some datasets, but sometimes they are non-linearly separable which poses a problem for these algorithms. To solve this we have Kernel K-means which can handle non-linear clustering.
+
+For the kernel function we will use the Gaussian (RBF), since it is one of the most common and usually yields good results.
+
+Since we have obtained 5 as the number of clusters for K-means and PAM, and we want to compare the Kernel based results and the ones we obtained previously, we will set the number of centers to 5.
+
+```{r}
+# Kernel K-means with 5 clusters and Gaussian kernel
+kernel_kmeans <- kkmeans(as.matrix(scaled_data), centers=5, kernel="rbfdot") 
+
+# Printing insights
+print(centers(kernel_kmeans))
+print(size(kernel_kmeans))
+print(withinss(kernel_kmeans))
+
+# Plotting clustering
+object.ker = list(data = scaled_data, cluster = kernel_kmeans@.Data)
+fviz_cluster(object.ker, geom = c("point"), ellipse=F,pointsize=1)+
+  theme_minimal()+geom_text(label=names,hjust=0, vjust=0,size=2,check_overlap = T)+scale_fill_brewer(palette="Paired")
+```
+
+Again if we look at the plot, it seems that the clustering has been very similar, to check we will compare how similar it is compared with the K-means and PAM.
+
+```{r}
+# Computing similarity between all clustering methods
+adjustedRandIndex(final_kmeans$cluster, kernel_kmeans@.Data)
+adjustedRandIndex(final_pam$cluster, kernel_kmeans@.Data)
+```
+
+Just as we predicted before the similarity between the K-means, PAM and Kernel K-means is significant. We can say by this that the data can be linearly separable, since the result with kernel does not change much, and also that the clustering that we have performed seems again very stable.
+
+## 5.5 Hierarchical clustering
+
+### 5.5.1 Motivation
 
 Hierarchical Clustering organizes data into a tree type structure. There are different types for it. Following the same explanation as before on PCA, these variables have to be scaled as it is based on distance methods, and therefore different scales could be really costly for the data.
 
@@ -1587,7 +1573,7 @@ fviz_dend(x = hc_euclidean_single,
           repel = TRUE)+  labs(title="Top 5 European Football Leagues Tree Structure") + theme(axis.text.x=element_blank(),axis.text.y=element_blank())
 ```
 
-## EM CLUSTERING
+## 5.6 EM CLUSTERING
 
 Assumes each data variable follows a probability distribution, in our case Gaussian Distribution, calculates the probability of each point belonging to each cluster based on the current estimates. It will update the parameters such as covariances to maximize the likelihood of the data
 
@@ -1598,7 +1584,7 @@ summary(res.Mclust)
 
 This returns that all points belong to one cluster.
 
-## Heatmaps
+## 5.7 Heatmaps
 
 Heatmaps are fantastic ways to see the relationships of data, it will use dendograms, which are structures already seen in hierarchical clustering.
 
