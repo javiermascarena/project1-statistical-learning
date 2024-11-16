@@ -6,7 +6,7 @@ date: "2024-11-09"
 
 # BRIEF INTRODUCTION
 
-We have chosen some datasets which represent statistics from all players in the Top 5 European Leagues which measure their performance in their domestic league in the Season 2022-2023.In this project we will analyse this datasets to obtain insights and different information about these football players.
+We have chosen some datasets which represent statistics from all players in the Top 5 European Leagues which measure their performance in their domestic league in the Season 2022-2023. In this project we will analyse this datasets to obtain insights and different information about these football players. This could then be used in scouting, training or performance improvement, between many other related applications.
 
 # **SET UP**
 
@@ -831,7 +831,7 @@ comp_mean <- data.frame(z1 = pca$x[,1], comp = comp) %>%
 print(comp_mean)
 ```
 
-We see that the league with the players who had statistics that best represented the variance was the Ligue1.Nation wise it was Russia and club wise it was FC Barcelona
+We see that the league with the players who had statistics that best represented the variance was the Ligue1. Nation wise it was Russia and club wise it was FC Barcelona.
 
 # **FACTOR ANALYSIS**
 
@@ -1124,6 +1124,28 @@ When we plot the clustering against the positions (our initial hypothesis), we o
 
 # Deciding number of clusters
 
+Choosing the number of clusters is a very difficult topic, but with a combination of different statistics we can have more confidence on our answer. The three metrics we will use are the Within-Cluster Sum of Squares (WSS), the Silhouette Score and the Gap Statistic.
+
+The WSS computes the squared distance between each point in the cluster and the centroid of that cluster. Mathematically (since we will use the Euclidean distance): $$\text{WSS}(k) = \sum_{q=1}^{k} \sum_{x \in C_q} \| x - \mu_q \|^2$$
+
+Where $k$ is the number of clusters, $C_q$ the data points in the cluster, and $\mu_q$ the centroid of the cluster $q$. With this we know that the WSS is a metric that measures how compact a cluster is.
+
+Note that we want the clusters to be as compact as possible, but adding clusters only makes the clusters more compact, so we try to minimize both the WSS and the number of clusters at the same time (elbow method).
+
+The Silhoeutte Score measures how similar each observation is to its cluster compared to the others. It ranges from -1 to 1, and the higher it is, the more confident we are that the clustering has been correct. Here the mathematical definition: $$\text{Silhouette Score} = \frac{1}{n} \sum_{i=1}^{n} s(i)$$
+
+Where: $$s(i) = \frac{b(i) - a(i)}{\max\{a(i), b(i)\}}$$ $$a(i) = \frac{1}{|C_i| - 1} \sum_{\substack{j \in C_i \\ j \neq i}} d(i, j)$$ $$b(i) = \min_{C_j \neq C_i} \left\{ \frac{1}{|C_j|} \sum_{l \in C_j} d(i, l) \right\}$$
+
+$a(i)$ is the average intra-cluster distance, $b(i)$ is the minimum average distance between the observation and the points in other cluster (inter-cluster distance), $s(i)$ is the silhouette score for a single point and $d(i, l)$ in our case is the Euclidean distance.
+
+Finally the Gap Statistic compares the within-cluster variation for different number of clusters ($k$), with the expected values of this variation of a reference distribution. In practice we try to maximize it while still having as low clusters as possible. Mathematically: $$W_k = \sum_{q=1}^{k} \sum_{x \in C_q} \| x - \mu_q \|^2$$
+
+Where $W_k$ is the within-cluster dispersion of the original dataset, $C_q$ is the cluster $q$ , $\mu_q$ the centroid of the cluster, and $\| x - \mu_q \|^2$ is the Euclidean distance we are using. With this we can compute the Gap Statistic: $$\text{Gap}(k) = \mathbb{E}_{P}[\log(W_k^*)] - \log(W_k)$$ $$\mathbb{E}_{P}[\log(W_k^*)] \approx \frac{1}{B} \sum_{b=1}^{B} \log(W_k^{*(b)})$$
+
+Where $W_k^{*(b)}$ is the within-cluster dispersion of reference dataset number $b$, since there are $B$ reference datasets $\{X_b^* \}_{b=1}^{B}$.
+
+To choose even more confidently the number of clusters we will calculate those metrics in our normal dataset, another one without goalkeepers, and a PCA reduced version of those two. For this we first calculate these datasets.
+
 ```{r}
 library("caret")
 
@@ -1152,6 +1174,8 @@ pca_result_no_gk <- prcomp(scaled_data_no_gk)
 pca_data <- as.data.frame(pca_result$x[, 1:7])
 pca_data_no_gk <- as.data.frame(pca_result_no_gk$x[, 1:7])
 ```
+
+Here we calculate these metrics for the 4 datasets (this cell takes some time to run).
 
 ```{r}
 library(cluster)
@@ -1217,7 +1241,19 @@ cluster_comparison(pca_data_no_gk)
 
 ```
 
+If we look at the WSS from all four datasets there is no clear elbow but it is usually at 4 to 6 where the decrease in the WSS stops being significant. So those 3 are candidates for number of clusters.
+
+Looking at the Silhouette Score all four datasets peak at k=2, which seems to be because there is a clear separation between goalkeepers and the rest of players, but there is no huge difference between field players.
+
+Finally the Gap Statistic usually has an elbow around k=5, which again makes 5 or 6 candidates for the optimal number of clusters.
+
+Seems that all metrics point to different directions, especially the Silhouette Score, but we can see where the weakness of this metric is its mathematical definition above. When the intra and inter cluster distance are really similar the Silhouette Score lowers, while this may be correct for datasets with highly differentiated classes this is not our case, since for example a player can play both attacking and defensive positions. This is why the Silhouette Score is not reliable in this case.
+
+On the other hand, again looking at the mathematical expression of the Gap Statistic, we can see that it performs really well for data were the classes are more broad, since we are comparing when clusters are relevant to when they only may explain noise. Therefore in our case the Gap Statistic will be the most reliable metric. Taking this into account we will choose 5 as the number of clusters for K-means.
+
 # Interpretation of clusters
+
+For the dataset to train the K-means on, we chose the scaled dataset and not the one with PCA, because although the PCA may eliminate some noise from the original dataset, it also has almost the same number of variables as the number of clusters, which could cause some overfitting problems.
 
 ```{r}
 #final_kmeans <- kmeans(scaled_data, centers = 5, nstart = 1000)
@@ -1242,10 +1278,7 @@ barplot(centers[5,], las=2, col="darkblue")
 pca_cluster_data <- pca_data %>%
   mutate(Cluster = final_kmeans$cluster,
          Position = full_data$Pos,
-         GoalsAssists = full_data$Goals + full_data$Assists,
-         CompletedPasses = full_data$CompletedPasses,
-         Tackles = full_data$TacklesANDIntercep,
-         X90s = full_data$X90s)  # Assuming 'full_data' has 'Pos' column
+         GoalsAssists = full_data$Goals + full_data$Assists)  # Assuming 'full_data' has 'Pos' column
 
 # Plot PCA with ggplot2, using color for 'Position' and shape for 'Cluster'
 ggplot(pca_cluster_data, aes(x = PC1, y = PC2, color = as.factor(Cluster), size = 0.5*GoalsAssists)) + 
@@ -1253,25 +1286,11 @@ ggplot(pca_cluster_data, aes(x = PC1, y = PC2, color = as.factor(Cluster), size 
   labs(title = "PCA of Clusters with Position Differentiation",
        x = "Principal Component 1", y = "Principal Component 2") +
   theme_minimal()
-
-ggplot(pca_cluster_data, aes(x = PC1, y = PC2, color = as.factor(Cluster), size = 0.5*CompletedPasses)) + 
-  geom_point(aes(shape = Position, alpha=0.8))+
-  labs(title = "PCA of Clusters with Position Differentiation",
-       x = "Principal Component 1", y = "Principal Component 2") +
-  theme_minimal()
-
-ggplot(pca_cluster_data, aes(x = PC1, y = PC2, color = as.factor(Cluster), size = 0.5*Tackles)) + 
-  geom_point(aes(shape = Position, alpha=0.8))+
-  labs(title = "PCA of Clusters with Position Differentiation",
-       x = "Principal Component 1", y = "Principal Component 2") +
-  theme_minimal()
-
-ggplot(pca_cluster_data, aes(x = PC1, y = PC2, color = as.factor(Cluster), size = 0.25*X90s)) + 
-  geom_point(aes(shape = Position, alpha=0.8))+
-  labs(title = "PCA of Clusters with Position Differentiation",
-       x = "Principal Component 1", y = "Principal Component 2") +
-  theme_minimal()
 ```
+
+Firstly, we can see a huge division between goalkeepers and the rest of the data, as expected. We can also see that the silhouette score is not the best one, but as we discussed before, for our dataset this metric is not too helpful. Moreover, we can see some unbalances in classes, which is obvious since, for example the number of goalkeepers is fixed.
+
+We clearly see that Cluster 1 is for goalkeepers. Cluster 2 is mostly forward-related but with also a big emphasis on not creating much game (passes), so center forwards could qualify for this. Cluster 3 is for players which have very small contributions, so average players or ones that have not played too much. Cluster 4 focuses on passes and defensive statistics, so defensive midfielders and defenders. Finally, Cluster 5 focuses on offensive players, but this time more goal-related, so many forwards should be in this clusters.
 
 ```{r}
 # Step 1: Create a data frame with cluster assignments and positions
@@ -1309,31 +1328,20 @@ ggplot(position_percentages, aes(x = as.factor(Cluster), y = percentage, fill = 
 
 ```
 
-plot_ly(
+In this plot we can confirm our hypothesis, Cluster 1 is for goalkeepers. Cluster 2 for traditional forwards. Cluster 3 for average or not good players, that's why the different types of positions in the cluster. Cluster 4 for defenders and defensive midfielders. And Cluster 5 for offensive play-makers offensive midfielders, forwards and even some defenders!
 
-data = pca_data_3d,
+# PAM
 
-x = \~PC1, \# Replace 'PC1', 'PC2', 'PC3' with actual column names if different
+In K-medoids the center of a cluster is not an abstract point, but an observation in the data, this is the main difference between it and K-means. This makes K-medoids a very stable algorithm in some cases, which could be ours, since having a reference player for a type of player seems like a good idea.
 
-y = \~PC2,
+For this we will would assume that the number of optimal clusters is the same as we calculated before in K-means. But to check we will calculate the Silhouette Score and the Gap Statistic.
 
-z = \~PC3,
+```{r}
+fviz_nbclust(scaled_data, pam, method = 'silhouette', k.max = 10)
+fviz_nbclust(scaled_data, pam, method = 'gap_stat', k.max = 10, nboot = 10)
+```
 
-color = \~Cluster,
-
-shape = \~as.factor(Position), \# Color by cluster
-
-text = \~Names, \# Add names as hover text
-
-type = "scatter3d",
-
-mode = "markers", \# Only show markers, not text
-
-marker = list(size = 4, opacity = 0.8),
-
-hoverinfo = "text" \# Show text only on hover
-
-)
+We observe that our guess of 5 could be a good value for k again if we follow the elbow method, so we will choose it.
 
 ```{r}
 library(plotly)
@@ -1344,13 +1352,11 @@ final_pam <- eclust(scaled_data, "pam", stand = TRUE, k = 5, graph = FALSE)
 # Extract cluster assignments
 cluster_assignments <- factor(final_pam$cluster)
 
-pam_plot <- fviz_cluster(final_pam, data = scaled_data, geom = c("point"), pointsize=1) +
+fviz_cluster(final_pam, data = scaled_data, geom = c("point"), pointsize=1) +
   theme_minimal() +
   geom_text(aes(label = names, color = factor(final_pam$cluster), alpha=0.8), hjust = 0, vjust = 0, size = 2, check_overlap = TRUE) +
   scale_fill_brewer(palette = "Paired") +
   scale_color_brewer(palette = "Paired") # Ensure matching color palette for text
-
-ggsave(filename = "pam_plot.png", plot = pam_plot, width = 10, height = 6, dpi = 300)
 
 
 # Ensure PCA data is in a data frame format and add cluster and player names
@@ -1369,15 +1375,64 @@ plot_ly(
   marker = list(size = 4, opacity = 0.8),
   hoverinfo = "text"
 )
-
-
 ```
+
+By the plots we can see that the clustering has remained almost the same as in K-means. But just checking by eye is not enough so we will do some plots to obtain a meaningful answer.
 
 ```{r}
-fviz_nbclust(scaled_data, pam, method = 'silhouette', k.max = 10)
-fviz_nbclust(scaled_data, pam, method = 'gap_stat', k.max = 10, nboot = 10)
+fviz_silhouette(final_pam)
+
+# Perform PCA on scaled data
+pca_result <- prcomp(scaled_data, center = TRUE, scale. = TRUE)
+
+
+groups <- final_pam$cluster
+barplot(table(groups), col="blue")
+centers <- final_pam$medoids
+
+barplot(centers[1,], las=2, col="darkblue")
+barplot(centers[2,], las=2, col="darkblue")
+barplot(centers[3,], las=2, col="darkblue")
+barplot(centers[4,], las=2, col="darkblue")
+barplot(centers[5,], las=2, col="darkblue")
+
+# Step 1: Create a data frame with cluster assignments and positions
+pca_cluster_data <- pca_data %>%
+  mutate(Cluster = final_pam$cluster, Position = full_data$Pos)
+
+# Step 2: Calculate counts of each Position in each Cluster
+position_counts <- pca_cluster_data %>%
+  group_by(Cluster, Position) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+# Step 3: Calculate the total number of observations in each Cluster
+cluster_totals <- pca_cluster_data %>%
+  group_by(Cluster) %>%
+  summarise(total = n())
+
+# Step 4: Merge the position counts with cluster totals to calculate percentages
+position_percentages <- position_counts %>%
+  left_join(cluster_totals, by = "Cluster") %>%
+  mutate(percentage = (count / total) * 100)
+
+# View the result
+position_percentages
+
+ggplot(position_percentages, aes(x = as.factor(Cluster), y = percentage, fill = Position)) +
+  geom_bar(stat = "identity", position = "stack", color = "black") +
+  labs(title = "Position Percentages in Each Cluster",
+       x = "Cluster",
+       y = "Percentage") +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) + # Optional: Format y-axis as percentage
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  guides(fill = guide_legend(title = "Position"))
+
 adjustedRandIndex(final_kmeans$cluster, final_pam$clustering)
 ```
+
+If we look more closely at the centers and the clusters in general we see that the clustering is very similar to the K-means, with almost the same plot and differentiation between positions, just changed in the order of clusters. This means that our model is robust and does not vary a lot between algorithms.
 
 ## Hierarchical Clustering
 
@@ -1387,7 +1442,7 @@ These are: Agglomerative and Divisive Hierarchical Clustering.
 
 On the one hand, agglomerative initally considers each point as a separate cluster, it then computes the distance matrix for the data and joins the two closest points. It repeats this process taking into account the clusters until one cluster with all the points contained is created.
 
-On the other hand, divisive clustering is the opposite of the previous. It considers all data points together on one single cluster, it then divides into smaller clusters, until all points form a singular cluster. It will do this obtaining the two most dissimilar elements in a cluster, and separating them. Computer wise this is a bit more complex as it is harder to find the optimal splits rather than the two closes points.
+On the other hand, divisive clustering is the opposite of the previous. It considers all data points together on one single cluster, it then divides into smaller clusters, until all points form a singular cluster. It will do this obtaining the two most dissimilar elements in a cluster, and separating them. Computer wise this is a bit more complex as it is harder to find the optimal splits rather than the two closest points.
 
 First of all we will obtain the distances as well as the linkage. As there is no single formula for which distance or linkage method is better, we will plot the graphs using different combinations of a few of them explained below and analyze the results to see which method is better.
 
@@ -1417,13 +1472,13 @@ $$
 d(C_1, C_2) = \frac{1}{|C_1| |C_2|} \sum_{x \in C_1, y \in C_2} d(x, y)
 $$
 
-We also have complete linkage, which measures the furthest distance
+We also have complete linkage, which measures the furthest distance:
 
 $$
 d(C_1, C_2) = \max \left\{ d(x, y) \mid x \in C_1, y \in C_2 \right\}
 $$
 
-And finally we have Ward\`s method which focuses on minimizing variance
+And finally we have Ward's method which focuses on minimizing variance:
 
 $$
 d(C_1, C_2) = \sqrt{\frac{|C_1| |C_2|}{|C_1| + |C_2|} \left( \mu_{C_1} - \mu_{C_2} \right)^T \left( \mu_{C_1} - \mu_{C_2} \right)}
