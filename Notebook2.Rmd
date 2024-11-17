@@ -56,7 +56,7 @@ Therefore, we will look at each dataset independently handling the unimportant c
 ```{r}
 # Defense Stats
 
-# The total amount of tackles (Tkl) is the sum of Def.3rd, Mid.3rd and Att.3rd which just refer to where in the pitch those tackles were made. Tkl.Int is a sum of both tackles and interceptions therefore we can keep this columns and eliminate both interceptions and tackles. Blocks are a sum of Sh and Pass which refers to the different type of blocks. Tkl.1 is tackles in the first half, already included in the first variable. Tkl.1 measures the percentage of lost balls when Att is done, it divides Att and Lost. Many players dont have errors, and at the same time errors leading to goal are mostly done by defenders as an error in the defense side is more crucial, therefore we will eliminate it as well.
+# The total amount of tackles (Tkl) is the sum of Def.3rd, Mid.3rd and Att.3rd which just refer to where in the pitch those tackles were made. Tkl.Int is a sum of both tackles and interceptions therefore we can keep this columns and eliminate both interceptions and tackles. Blocks are a sum of Sh and Pass which refers to the different type of blocks. Tkl.1 is tackles in the first half, already included in the first variable. Tkl.1 measures the percentage of lost balls when Att is done, it divides Att and Lost. Many players dont have errors, and at the same time errors leading to goal are mostly done by defenders as an error in the defense side is more critical than an error in a different side of the field, therefore we will eliminate it as well.
 
 defense_cols <- c("Def.3rd","Mid.3rd","Att.3rd","Tkl.1","Int","Sh", "Pass", "Att", "Lost","Err")
 defense_stats <- defense_stats %>% select(-all_of(defense_cols))
@@ -66,7 +66,7 @@ defense_stats <- defense_stats %>%
 
 # GCA stats
 
-# SCA is an advanced metric that tracks the two offensive/attacking actions that directly lead to a shot on # goal, Following the same logic as a Shot-Creating Action, a Goal-Creating Action is an advanced metric that tracks the two offensive/attacking actions that leads to a goal. These follow the same criteria as  the above list. The difference is that one causes a goald, the other an scoring chance
+# SCA is an advanced metric that tracks the two offensive/attacking actions that directly lead to a shot on  goal. Following the same logic as a Shot-Creating Action, a Goal-Creating Action is an advanced metric that tracks the two offensive/attacking actions that leads to a goal. These follow the same criteria as  the above list. The difference is that one causes a goal, the other an scoring chance.
 # SCA is a sum of PassLive, PassDead, TO, Sh Fld, Def, they are different stats that contribute to it, and  SCA90s can be inferred as SCA*90s returns SCA90s
 # GCA follows the same deduction as before
 
@@ -77,7 +77,7 @@ gca_stats <- gca_stats %>%
 
 # Misc stats
 
-# X2CrdY is when the player is suspended by 2 yellow cards instead of one red card, this is included in the Red Card statistic. TklW and Int are already included in the defense dataset, Won. refers to the aerial duels won, and it divides won and lost, so we can remove them. Own goals are many times fortunate and dont affect the skill value of a player. PKwon and PKcon refer to the amount of penalties conceded and won, but not many players have a value here so we will remove it as it is irrelevant. Crs refers to crosses and will appear in a future dataset 
+# X2CrdY is when the player is suspended by 2 yellow cards instead of one red card, this is included in the Red Card statistic. TklW and Int are already included in the defense dataset. Won. refers to the aerial duels won, and it divides won and lost, so we can remove them. Own goals are many times fortunate and dont affect the skill value of a player. PKwon and PKcon refer to the amount of penalties conceded and won, but not many players have a value here so we will remove it as it is irrelevant. Crs refers to crosses and it will appear in a future dataset 
 
 misc_cols <- c("X2CrdY", "TklW", "Int", "Won", "Lost", "OG", "PKwon", "PKcon", "Crs")
 misc_stats <- misc_stats %>% select(-all_of(misc_cols))
@@ -114,7 +114,7 @@ shooting_stats <- shooting_stats %>%
 
 # Keepers one
 
-# The statistics MP, Starts, Min will be in another dataset so we will remove them. Save. is calculated by SoTA-GA/SoTa and CS. which refers to clean sheets can also be removed. Everything about free kicks and penalties can be removed as it is easy to score from a penalty and harder from a free kick and it usually depends on the quality of the attacker, many times the keeper cannot do much.We will remove PKatt, PKA, PKsv,PKm,Save..1. GA90 can also be inffered with Goals Against and 90s
+# The statistics MP, Starts, Min will be in another dataset so we will remove them. Save. is calculated by SoTA-GA/SoTa. CS. which refers to clean sheets can also be removed. Everything about free kicks and penalties can be removed as it is easy to score from a penalty and harder from a free kick and it usually depends on the quality of the attacker, many times the keeper cannot do much.We will remove PKatt, PKA, PKsv,PKm,Save..1. GA90 can also be inffered with Goals Against and 90s
 
 keepers_cols <- c("MP", "Starts", "Min", "Save.", "CS.", "PKatt", "PKA", "PKsv","PKm","Save..1", "GA90")
 keepers_one <- keepers_one %>% select(-all_of(keepers_cols))
@@ -125,7 +125,7 @@ keepers_one <- keepers_one %>%
 
 # Playing Time
 
-# Min can be calcualted by 90 * X90S.Mn.Mp can be calculated as Min/Mp, Mn. can also be calculated. Mn.Start will be Min/Starts, Compl can be seen as it is not really important. The same for all sub variables as with minutes we can already kind of see the amount of time played. We will remove Subs, Mn.Sub, unSub. X... is substraction of onG and onGA so we can remove it, and the same for the 90s, X...90. Same for On.Off.1 and On.Off. Minutes is a character therefore we will have to change to numeric
+# Min can be calculated by 90 * X90S.Mn.Mp can be calculated as Min/Mp, Mn. can also be calculated. Mn.Start will be Min/Starts, Compl can be seen as it is not really important. The same for all sub variables as with minutes we can already kind of see the amount of time played. We will remove Subs, Mn.Sub, unSub. X... is substraction of onG and onGA so we can remove it, and the same for the 90s, X...90. Same for On.Off.1 and On.Off. Minutes can be deduced as X90s times 90, we will also remove it.
 
 playing_cols <- c("Mn.MP","Min.","Min", "Mn.Start", "Compl", "Subs", "Mn.Sub", "unSub","X...", "X...90", "On.Off", "On.Off.1", "xG...", "xG...90")
 playingtime <- playingtime %>% select(-all_of(playing_cols))
@@ -194,6 +194,8 @@ final_players$Comp <- substr(final_players$Comp, 4, nchar(final_players$Comp))
 head(final_players)
 ```
 
+## **2.1 Duplicate Values**
+
 Apart from that we also see there are a total of +200 duplicates which could be from players who were transferred or were loaned mid-season. To deal with this, we will keep the entries with the most time played.
 
 ```{r}
@@ -208,7 +210,7 @@ final_players <- final_players %>%
 sum(duplicated(final_players))
 ```
 
-## **2.1 NA Values**
+## **2.2 NA Values**
 
 Using a barplot to see the columns with NA values.
 
@@ -250,7 +252,7 @@ data_fifa <- data_fifa %>%
   ungroup()
 
 # Check that there are no duplicates now
-sum(duplicated(final_players))
+sum(duplicated(data_fifa))
 
 
 ```
@@ -321,6 +323,10 @@ full_data <- full_data %>%
 names = full_data[,1]
 ```
 
+The chunk returned an unexpected many to many relationship problem, this could be due to players with the same surname.We tried different methods but they just did not work, as they eliminated many good players or provided more problems. This method maintained the best players and did not cause errors in the next steps
+
+These merging returns our final dataset with no NA values nor repeated players with 1934 players and 65 different variables.
+
 We observe that some observations have been lost. If we look closely at the data most of those observations not merged do not appear in the FIFA dataset so, since they are not very relevant we can exclude them confidently.
 
 ```{r}
@@ -328,9 +334,9 @@ We observe that some observations have been lost. If we look closely at the data
 not_merged <- anti_join(final_players, full_data, by = "Player")
 ```
 
-## 2.2 Outliers
+## 2.3 Outliers
 
-Outliers are actually important as many players could have a fantastic season compared to others so it is important to keep them, since outliers in our dataset can represente very good players like Messi. But there are many players who are not in the managers rotation and they do not play much minutes so we will eliminate them as they will not provide useful information and are outliers after all.
+Outliers are actually important as many players could have a fantastic season compared to others so it is important to keep them, since outliers in our dataset can represent very good players like Messi. But there are many players who are not in the managers rotation and they do not play much minutes so we will eliminate them as they will not provide useful information and are outliers after all.
 
 ```{r}
 ggplot(full_data) +
@@ -346,7 +352,7 @@ X90s is a representation of the total minutes played divided by 90, which shows 
 full_data <- full_data[full_data$X90s > 2,]
 ```
 
-## **2.3 Exploratory Data Analysis**
+## **2.4 Exploratory Data Analysis**
 
 We will now create some graphs to generate some insights and obtain information about the players.
 
@@ -397,14 +403,14 @@ In this plot we focus on passes. With this density graph, we observe the range w
 
 ```{r}
 ggplot(full_data, aes(x=100*CompletedPasses/AttemptedPasses, y=PassingDistance/X90s)) +
-  stat_density_2d(aes(fill = ..level..), geom = "polygon", colour="white")+
+  stat_density_2d(aes(fill = after_stat(level)), geom = "polygon", colour="white")+
   ggtitle("Pass Accuracy % vs Passing Distance per Game")+
   xlab("Pass Accuracy %") +                      
   ylab(" Avg. Passing Distance per Game") + 
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
-Next, we created a correlation plot for defensive actions. As we can see except Aerial Duels, the other ones are closely related. However, this defensive actions are more correlated in midfielders, and sometimes forwards, than in defenders which is surprising.
+Next, we created a correlation plot for defensive actions. As we can see except Aerial Duels, the other ones are closely related. However, this defensive actions are more correlated in midfielders and sometimes forwards, than in defenders which is surprising.
 
 ```{r}
 # Select only the defensive columns for the correlogram
@@ -436,7 +442,7 @@ ggplot(full_data)+
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
-## 2.4 Data transformation and scaling
+## 2.5 Data transformation and scaling
 
 Before using any algorithm on the data we have to check whether or not we scale the data, and also select the numeric columns and the ones we are interested in. We will start by choosing some numeric columns and plotting them to see their distribution.
 
@@ -461,21 +467,17 @@ for (col_name in names(numeric_columns)) {
 Most of these plots are left skewed, one reason for this is due to the number of goalkeepers, as these position has no value for these variables recorded. For goalkeeper stats it would happen exactly the same. Apart from that, most teams may have around 25 players, while the lineups are of 11 players, these leads to difficulties distributing the number of minutes between the players so the recorded stat for most players is low. Now we will use all numeric variables and see the relations and information we can obtain.
 
 ```{r}
-# Was used to show the different histograms, now we have to delete it
-par(mfrow = c(1, 1))
-
-
 # Need to select numeric data from the dataset
 numeric_data <- select_if(full_data, is.numeric)
 
-# Using boxplots to visualize a few columns
+# Using boxplots with the previous columns for a better visualization
 boxplot(numeric_columns, las=2, col="darkblue")
 
 ```
 
 These boxplots clearly show that we will need to scale the data before performing any algorithm on them. This is due to the difference of variance between each variables.
 
-As the data is mostly left skewed, to fix this we can apply a log to the numeric columns to center these distributions before scaling.
+As the data is mostly left skewed, to fix this we can apply the square root to the numeric columns to center these distributions before scaling.
 
 ```{r}
 
@@ -512,7 +514,7 @@ This shows the correlation for the different variables, some of these have high 
 
 The main objective of PCA is to visualize a high dimensional space in lower dimensions, where the new reduced variables (principal components) will be uncorrelated and linear combinations of the original one. This will also reduce redundancy and find relationships between variables.
 
-The first principal component will show the direction of the variance. This component will be given by these formula:
+The first principal component will show the direction of the variance. This component will be given by this formula:
 
 $$  Z_1 = X \mathbf{a}_1 $$
 
@@ -547,7 +549,6 @@ PCA will be essential in our project as our current dataset has around 60 dimens
 pca = prcomp(scaled_data, scale=F)
 
 summary(pca)
-get_eigenvalue(pca)
 
 ```
 
@@ -589,9 +590,11 @@ corrplot(
 
 ```
 
-We have chosen to maintain 7 components.This is based on our previous graphs. In the previous scree plot,apart from the eigenvalues obtained we see that the variance explained by 7 components is 85.34% which is a really high value. Apart from that, parallel analysis returned a value of 7 confirming and giving more backup to our statement. Moreover, on our most recent graph,it is easily seen that from Dim 15 to 57 there is basically no representation of the variables. Most variables are well represented in the first few dimensions , and all variables are represented in some way when the 7th dimension is reached.As we started with dimension 57 and we want to reduce dimensionality as much as possible while retaining as much variance as possible, the election of 7 components seems to be pretty good.
+We have decided to maintain 7 components.
 
-## 3.4 Interpretation of components
+This is based on our previous graphs. In the previous scree plot,apart from the eigenvalues obtained we see that the variance explained by 7 components is 85.34% which is a really good value. Apart from that, parallel analysis returned a value of 7 confirming and giving more backup to our statement. Moreover, on our most recent graph,it is easily seen that from Dim 15 to 57 there is basically no representation of the variables. Most variables are well represented in the first few dimensions , and all variables are represented in some way when the 7th dimension is reached.As we started with dimension 57 and we want to reduce dimensionality as much as possible while retaining as much variance as possible, the election of 7 components seems to be pretty good.
+
+## 3.4 Interpretation and Visualization of components
 
 ```{r}
 # First Component
@@ -741,7 +744,8 @@ names <- full_data[[1]]
 
 print("First Component")
 names[order(-pca$x[,1])][1:10]
-# The sign here for the pca is negative, as the goalkeeper stats are inversely proportional and if not we would be getting goalkeepers instead
+
+# The sign here for the pca is negative, as the goalkeeper stats are inversely proportional to the first component and if not we would be getting goalkeepers instead
 
 print("Second Component")
 names[order(pca$x[,2])][1:10]
@@ -787,7 +791,7 @@ comp_mean <- data.frame(z1 = pca$x[,1], comp = comp) %>%
 print(comp_mean)
 ```
 
-We see that the league with the players who had statistics that best represented the variance was the Ligue1. Nation wise it was Russia and club wise it was FC Barcelona.
+We see that the league with the players who had statistics that best represented the variance was the Ligue1. Nation wise it was Russia and club wise it was FC Barcelona. This could also be due to that each of these categories has the higher number of players.
 
 # **4. FACTOR ANALYSIS**
 
@@ -1494,7 +1498,7 @@ hc_canberra_ward = hclust(d2, method = "ward.D")
 
 To see which method is better we will obtain the silhouette values for each of the hierarchical clusters we have done before. The one who yields a mean value closes to one will be the best one. As this one will indicate that the point is closest to its own cluster rather than the nearest other cluster. If the value is negative this will likely be a misclassification.
 
-Based on our previous clustering analysis we will use the cutree function to cut at 5 clusters, which as seen in the previous method, it appears to be the best number of clusters for our data.
+Based on our previous clustering analysis we will use the cutree function to cut at 5 clusters, which as seen in the previous methods, it appears to be the best number of clusters for our data.
 
 ```{r}
 # Establish the number of clusters where to cut the dendogram
@@ -1551,13 +1555,28 @@ d1 = dist(scaled_data, method = "euclidean")
 
 hc_euclidean_single = hclust(d1, method = "single")
 
+As these plots are really expensive and R studio takes a lot of time to load these, we plotted them with the players who had played the most.
+
 ```{r}
-fviz_dend(x = hc_euclidean_single,
-          k=5,
-          palette = "jco", 
-          rect = TRUE, rect_fill = TRUE, 
-          rect_border = "jco"          
-)
+reduced_data <- full_data[full_data$Overall > 80,]
+reduced_numeric_data <- select_if(reduced_data, is.numeric)
+scaled_reduced_data <- scale(sqrt(reduced_numeric_data))
+```
+
+```{r}
+d1_reduced = dist(scaled_reduced_data, method = "euclidean")
+
+hc_euclidean_single_reduced = hclust(d1_reduced, method = "single")
+
+fviz_dend(
+  x = hc_euclidean_single_reduced,
+  k = 5,
+  palette = "jco", 
+  rect = TRUE, 
+  rect_fill = TRUE, 
+  rect_border = "jco"
+) + 
+  guides(color = "none", fill = "none")
 
 
 ```
@@ -1565,7 +1584,7 @@ fviz_dend(x = hc_euclidean_single,
 As it will be complicated to see this using a dendogram, we will do it using a phylogenic tree.
 
 ```{r}
-fviz_dend(x = hc_euclidean_single,
+fviz_dend(x = hc_euclidean_single_reduced,
           k = 5,
           color_labels_by_k = TRUE,
           cex = 0.8,
@@ -1573,16 +1592,41 @@ fviz_dend(x = hc_euclidean_single,
           repel = TRUE)+  labs(title="Top 5 European Football Leagues Tree Structure") + theme(axis.text.x=element_blank(),axis.text.y=element_blank())
 ```
 
+We can see that the clustering here is not good, as we have chosen many players who have played 30 matches or more, most of them will be goalkeepers and then other different positions. As these graphs are really expensive in computer terms they are really complicated to plot and visualize as there are other constant iterations between the different data distance to assign the clusters.
+
 ## 5.6 EM CLUSTERING
 
 Assumes each data variable follows a probability distribution, in our case Gaussian Distribution, calculates the probability of each point belonging to each cluster based on the current estimates. It will update the parameters such as covariances to maximize the likelihood of the data
 
 ```{r}
+set.seed(1)
 res.Mclust <- Mclust(scaled_data)
 summary(res.Mclust)
 ```
 
-This returns that all points belong to one cluster.
+The result obtained is that all points belong to one cluster, we also had a different result that stated the best number of clusters was 9 and the results are commented down below. The variation in results is caused as it has random initialization for finding clusters, and the randomness can vary the results.
+
+As with only one cluster the code would return an error, therefore we left the code commented.
+
+As it can be seen, the log likelihood has a value of -12545.42, the most important variables to take into account are BIC, which evaluates the fitness of the model and penalizes for complexity. ICL considers the quality of the clusters assignment. We can also see that most players are in cluster 1, 5 and 6
+
+```{r}
+# We also checked the values with 5 clusters but the results obtained were worse than the 9 clusters obtained, BIC = -48926.59 and ICL = -49119.96
+#res.Mclust5 <- Mclust(scaled_data, G = 5)
+#summary(res.Mclust5)
+```
+
+```{r}
+#fviz_mclust(object = res.Mclust, what = "BIC", pallete = "jco") +
+#  scale_x_discrete(limits = c(1:10))
+```
+
+```{r}
+#fviz_mclust(object = res.Mclust, what = "classification", geom = "point",
+#          palete = "jco")
+```
+
+By looking at this graph, we can see that EM clustering does not return a really good result, as we have many overlapps as well as weakly separated clusters. It is true it separates the goalkeepers which is something we had not seen from the previous methods and it could be it separates good and bad goalkeepers. However the clustering for players is not really good, as most points are on different clusters as the separation between them is not really clear.
 
 ## 5.7 Heatmaps
 
@@ -1590,12 +1634,10 @@ Heatmaps are fantastic ways to see the relationships of data, it will use dendog
 
 This will be done, with Euclidean and Single method as we have seen this is the best method.
 
-To plot this heatmap, we will use the pheatmap library as with the number of observations we currently have
+To plot this heatmap, we will use the pheatmap library as with the number of observations we currently have we will visualize it better
 
 ```{r}
-library(pheatmap)
 
-# Generate heatmap with better control over dendrogram appearance
 pheatmap(scaled_data,
          clustering_distance_rows = "euclidean",
          clustering_method = "single",
@@ -1604,6 +1646,8 @@ pheatmap(scaled_data,
          angle_col = 90,      
          treeheight_row = 50, 
          treeheight_col = 50) 
+
+
 ```
 
-These graph is not really good for visualizing the similarities between players as there are around 2000 players for which the distances are computed and it is really hard to visualize this. But it shows the similarities between many variables so this graph is useful for our project. We can see by looking at the length of the branches, the shortest the branch the closer two variables are related. By looking at the graph we can see that these relations make sense, such as Shots On Target Against and Saves which are really related. Attempted Passes and Touches are also really similar, these are just a few examples, but both of these combinations make a lot of sense.
+This graph is not really good for visualizing the similarities between players as there are around 2000 players for which the distances are computed and it is really hard to visualize this. But it shows the similarities between many variables so this graph is useful for our project. We can see by looking at the length of the branches, the shortest the branch the closer two variables are related. By looking at the graph we can see that these relations make sense, such as Shots On Target Against and Saves which are really related. Attempted Passes and Touches are also really similar, these are just a few examples, but both of these combinations make a lot of sense.
