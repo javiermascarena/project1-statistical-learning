@@ -4,7 +4,7 @@ output: html_document
 date: "2024-11-09"
 ---
 
-# BRIEF INTRODUCTION
+# **BRIEF INTRODUCTION**
 
 We have chosen some datasets which represent statistics from all players in the Top 5 European Leagues which measure their performance in their domestic league in the Season 2022-2023. In this project we will analyse this datasets to obtain insights and different information about these football players. This could then be used in scouting, training or performance improvement, between many other related applications.
 
@@ -984,9 +984,7 @@ factor8_plot <- ggplot(loadings, aes(x = Variable, y = MR8, fill = MR8 > 0)) +
                      labels = c("Negative", "Positive"))
 
 # Combining plots
-p <- (factor1_plot + factor2_plot) / (factor3_plot + factor4_plot) / (factor5_plot + factor6_plot) / (factor7_plot + factor8_plot)
-
-ggsave("factors_plot.jpg", plot = p, device = "jpeg", width = 12, height = 12, dpi = 300)
+(factor1_plot + factor2_plot) / (factor3_plot + factor4_plot) / (factor5_plot + factor6_plot) / (factor7_plot + factor8_plot)
 ```
 
 For the first factor we observe that variables related to passes and game creation are the most influential, so the latent factor could be midfielders or game-creators. For the second factor goalkeeper variables influence it very positively, while variables of defenders, like tackles are very negative, so the latent factor could be goalkeepers (positive) and defenders (negative). For the last factor we see that offensive-game creators, the ones that create possible goal actions, are really high, so the latent factor should be players with this trait.
@@ -1037,7 +1035,7 @@ Finally, we observe that although this analysis does pretty well, it is not perf
 
 As a conclusion, we have pretty reasonably performed factor analysis which has given us meaningful hidden factors that could be used from scouting to improve a players performance, or many other possibilities.
 
-# 5. CLUSTERING
+# **5. CLUSTERING**
 
 ## 5.1 Motivation
 
@@ -1474,7 +1472,7 @@ $$
 d(C_1, C_2) = \sqrt{\frac{|C_1| |C_2|}{|C_1| + |C_2|} \left( \mu_{C_1} - \mu_{C_2} \right)^T \left( \mu_{C_1} - \mu_{C_2} \right)}
 $$
 
-These is how we computed the different distances and plotted the different graphs
+These is how we computed the different distances and plotted the different graphs.
 
 ```{r}
 ?stats::dist
@@ -1592,7 +1590,7 @@ fviz_dend(x = hc_euclidean_single_reduced,
           repel = TRUE)+  labs(title="Top 5 European Football Leagues Tree Structure") + theme(axis.text.x=element_blank(),axis.text.y=element_blank())
 ```
 
-We can see that the clustering here is not good, as we have chosen many players who have played 30 matches or more, most of them will be goalkeepers and then other different positions. As these graphs are really expensive in computer terms they are really complicated to plot and visualize as there are other constant iterations between the different data distance to assign the clusters.
+We can see that the clustering here is not good, as we have chosen many players who have played 30 matches or more, most of them will be goalkeepers and then other different positions. As these graphs are really expensive computationally they are really complicated to plot and visualize as there are other constant iterations between the different data distance to assign the clusters.
 
 ## 5.6 EM CLUSTERING
 
@@ -1612,18 +1610,13 @@ As it can be seen, the log likelihood has a value of -12545.42, the most importa
 
 ```{r}
 # We also checked the values with 5 clusters but the results obtained were worse than the 9 clusters obtained, BIC = -48926.59 and ICL = -49119.96
-#res.Mclust5 <- Mclust(scaled_data, G = 5)
-#summary(res.Mclust5)
+res.Mclust5 <- Mclust(scaled_data, G = 5)
+summary(res.Mclust5)
 ```
 
 ```{r}
-#fviz_mclust(object = res.Mclust, what = "BIC", pallete = "jco") +
-#  scale_x_discrete(limits = c(1:10))
-```
-
-```{r}
-#fviz_mclust(object = res.Mclust, what = "classification", geom = "point",
-#          palete = "jco")
+fviz_mclust(object = res.Mclust, what = "BIC", pallete = "jco") +
+  scale_x_discrete(limits = c(1:10))
 ```
 
 By looking at this graph, we can see that EM clustering does not return a really good result, as we have many overlapps as well as weakly separated clusters. It is true it separates the goalkeepers which is something we had not seen from the previous methods and it could be it separates good and bad goalkeepers. However the clustering for players is not really good, as most points are on different clusters as the separation between them is not really clear.
@@ -1651,3 +1644,13 @@ pheatmap(scaled_data,
 ```
 
 This graph is not really good for visualizing the similarities between players as there are around 2000 players for which the distances are computed and it is really hard to visualize this. But it shows the similarities between many variables so this graph is useful for our project. We can see by looking at the length of the branches, the shortest the branch the closer two variables are related. By looking at the graph we can see that these relations make sense, such as Shots On Target Against and Saves which are really related. Attempted Passes and Touches are also really similar, these are just a few examples, but both of these combinations make a lot of sense.
+
+## 5.8 Conclusion
+
+After using some different types of clustering, we observed that the one that yielded the best results was the normal K-means or K-medoids. This emphasizes that sometimes the more basic methods work really well, as long as you have a good dataset and preprocessing behind it.
+
+# **6. CONCLUSION**
+
+After analyzing our dataset and performing the different supervised learning techniques, we saw the different benefits PCA provided with the huge reduction of dimensions, FA provided meaningful hidden information and Clustering was useful for grouping similar players. All this allowed us to see players such as Bruno Fernandes or David Raya who had fantastic seasons with their respective clubs. Better and more visual differences between great and average players, or the role of each player on the field, and even many more things!
+
+Finally, we wanted to focus this project not only on the typical coding perspective but also on the meaning behind every algorithm we used, every formula we used for selecting anything and much more. This is why many times we provide mathematical explanations along with some commentaries of our decisions, since we think this is the way to fully understand what we are doing and the subject in itself.
